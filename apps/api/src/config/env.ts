@@ -17,6 +17,7 @@ export interface AppEnv {
   environment: string;
   evidenceDir: string;
   port: number;
+  webOrigin: string;
 }
 
 export function loadEnv(): AppEnv {
@@ -35,5 +36,6 @@ export function loadEnv(): AppEnv {
     environment: requireEnv('FULMEN_ENV', 'development'),
     evidenceDir: requireEnv('FULMEN_EVIDENCE_DIR', 'tmp/evidence'),
     port: Number.parseInt(requireEnv('PORT', '4000'), 10),
+    webOrigin: requireEnv('FULMEN_WEB_ORIGIN', 'http://localhost:3000'),
   };
 }

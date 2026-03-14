@@ -11,6 +11,7 @@ import type { AppEnv } from '../config/env.js';
 import { createHealthRouter } from '../health/health-router.js';
 import { createRoutes } from '../routes/index.js';
 import { createWorkflowsRouter } from '../workflows/workflows-router.js';
+import { createLocalDevCorsMiddleware } from './local-dev-cors.js';
 
 export function createApp(env: AppEnv) {
   const app = express();
@@ -32,6 +33,11 @@ export function createApp(env: AppEnv) {
 
   app.disable('x-powered-by');
   app.use(express.json());
+
+  if (env.environment === 'development') {
+    app.use(createLocalDevCorsMiddleware(env.webOrigin));
+  }
+
   app.use(
     createDevAuthMiddleware({
       role: env.defaultRole,
