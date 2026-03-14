@@ -1,0 +1,22 @@
+{
+  "name": "@fulmen/orchestrator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint .",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@fulmen/audit": "file:../../services/audit",
+    "@fulmen/contracts": "file:../../packages/contracts",
+    "@fulmen/guard-agent": "file:../../services/guard-agent",
+    "@fulmen/policy-engine": "file:../../services/policy-engine",
+    "@fulmen/tool-gateway": "file:../../services/tool-gateway"
+  }
+}

@@ -1,0 +1,34 @@
+import { Router } from 'express';
+
+import type { AuditService } from '@fulmen/audit';
+import type { GuardAgent } from '@fulmen/guard-agent';
+import type { Orchestrator } from '@fulmen/orchestrator';
+
+import { createApprovalsRouter } from '../approvals/approvals-router.js';
+import { createAuditRouter } from '../audit/audit-router.js';
+
+interface RouteDependencies {
+  auditService: AuditService;
+  guardAgent: GuardAgent;
+  orchestrator: Orchestrator;
+}
+
+export function createRoutes(dependencies: RouteDependencies): Router {
+  const router = Router();
+
+  router.get('/api/v1/system/summary', (_request, response) => {
+    response.json({
+      mode: 'mvp-scaffold',
+      services: {
+        audit: typeof dependencies.auditService.record === 'function',
+        guardAgent: typeof dependencies.guardAgent.buildStubPlan === 'function',
+        orchestrator: typeof dependencies.orchestrator.preview === 'function',
+      },
+    });
+  });
+
+  router.use(createApprovalsRouter());
+  router.use(createAuditRouter());
+
+  return router;
+}

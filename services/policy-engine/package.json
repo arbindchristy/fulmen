@@ -1,0 +1,19 @@
+{
+  "name": "@fulmen/policy-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint .",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@fulmen/contracts": "file:../../packages/contracts",
+    "@fulmen/policies": "file:../../packages/policies"
+  }
+}

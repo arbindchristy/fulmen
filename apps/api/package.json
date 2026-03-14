@@ -1,0 +1,30 @@
+{
+  "name": "@fulmen/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "db:migrate": "node --env-file=../../.env --env-file=.env --import tsx ./src/db/migrate.ts",
+    "dev": "node --watch --env-file=../../.env --env-file=.env --import tsx ./src/server.ts",
+    "lint": "eslint .",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@fulmen/audit": "file:../../services/audit",
+    "@fulmen/contracts": "file:../../packages/contracts",
+    "@fulmen/guard-agent": "file:../../services/guard-agent",
+    "@fulmen/orchestrator": "file:../../services/orchestrator",
+    "@fulmen/policy-engine": "file:../../services/policy-engine",
+    "@fulmen/tool-gateway": "file:../../services/tool-gateway",
+    "express": "^4.21.2",
+    "pg": "^8.13.3"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/pg": "^8.11.11",
+    "@types/supertest": "^6.0.3",
+    "supertest": "^7.0.0"
+  }
+}
