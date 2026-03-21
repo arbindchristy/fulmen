@@ -1,7 +1,10 @@
 # Fulmen Roadmap
 
 ## Positioning
-Fulmen is currently a pre-build scaffold. The immediate goal is not to build a broad agent platform, but to deliver a credible MVP for governed enterprise automation using one high-trust workflow: change control for IT operations.
+Fulmen is currently a pre-build scaffold. The immediate goal is not to build a broad agent platform, but to deliver a credible MVP for governed enterprise automation using one high-trust workflow: change control for IT operations with real AI agents inside the workflow.
+
+## Core Principle
+Agents think. Systems enforce. Humans approve.
 
 This roadmap distinguishes:
 
@@ -10,12 +13,17 @@ This roadmap distinguishes:
 - Milestones that preserve security, correctness, auditability, and simplicity
 
 ## MVP Cut Line
-The MVP ends at a single working vertical slice for a governed change-control agent.
+The MVP ends at a single working vertical slice for a governed multi-agent change-control workflow.
 
 Included in the cut line:
 
 - One local-developer-friendly deployment
 - One change-control workflow
+- Four bounded AI agent roles:
+  - Intake Agent
+  - Planning Agent
+  - Risk & Policy Agent
+  - Execution Agent
 - One policy bundle
 - One approval path
 - One stub connector path
@@ -30,7 +38,7 @@ Excluded from the cut line:
 - Broad connector ecosystems
 
 ## MVP Outcome
-An enterprise operator can submit a change request, the system can generate a constrained execution plan, each sensitive action is policy-checked, high-risk actions can be routed for human approval, approved tool operations run through a secure gateway, and the full lifecycle is available as audit evidence.
+An enterprise operator can submit a change request, the Intake Agent can structure the request, the Planning Agent can generate a constrained execution plan, the Risk & Policy Agent can summarize why steps are risky, the system can policy-check each sensitive action, high-risk actions can be routed for human approval, the Execution Agent can reason about approved execution sequencing, approved tool operations can run through a secure gateway, and the full lifecycle is available as audit evidence.
 
 ## MVP Scope
 
@@ -38,7 +46,7 @@ An enterprise operator can submit a change request, the system can generate a co
 - Authenticated operator and approver experience
 - Change request creation and submission
 - Governed orchestration for the change-control workflow
-- Structured model planning with no direct tool execution
+- Real bounded AI agents for intake, planning, risk reasoning, and execution reasoning
 - Policy evaluation for every sensitive action
 - Approval workflow for actions requiring human review
 - Secure tool gateway with allowlisted connectors
@@ -55,7 +63,7 @@ An enterprise operator can submit a change request, the system can generate a co
 - `apps/web`
 - PostgreSQL
 - In-process orchestrator module
-- In-process guard-agent module
+- In-process guard-agent and agent-role module
 - In-process policy engine module
 - In-process audit module
 - Tool gateway with one stub connector
@@ -89,8 +97,8 @@ To keep the MVP realistic on a MacBook:
 - Run PostgreSQL in Docker.
 - Run `apps/api` locally.
 - Run `apps/web` locally.
-- Keep orchestrator, policy engine, guard agent, tool gateway, and audit logic in-process inside the API.
-- Default to a deterministic stub planner and a stub change-control connector.
+- Keep orchestrator, policy engine, guard agent, tool gateway, audit logic, and all four agent roles in-process inside the API.
+- Support deterministic fixtures for tests and scaffolding work, but target real agent reasoning for the MVP workflow.
 - Use local filesystem evidence storage and environment-based secrets in development.
 
 Nothing else should be required to reach the first working vertical slice.
@@ -123,6 +131,7 @@ Deliverables:
 - Local development auth with seeded users and roles
 - `apps/api` with health and change-request CRUD
 - Basic audit event emission for request lifecycle changes
+- Contracts for bounded agent inputs and outputs
 
 Exit criteria:
 - A developer can run the stack on a MacBook
@@ -131,20 +140,23 @@ Exit criteria:
 
 ### Milestone 2: Working Vertical Slice
 Goal:
-Implement one governed change-control run from request to audited stub execution.
+Implement one governed change-control run with bounded multi-agent reasoning and audited stub execution.
 
 Deliverables:
 - Minimal operator and approver UI in `apps/web`
 - Run and step execution storage
 - Orchestrator state machine
 - Policy engine and first policy bundle
-- Guarded planning with deterministic stub planner
+- Intake Agent
+- Planning Agent
+- Risk & Policy Agent
+- Execution Agent
 - Approval request and decision flow
 - Tool gateway with one stub connector
 
 Exit criteria:
 - A local user can complete the end-to-end governed change-control flow
-- Runs produce structured plans only
+- Agent outputs stay within approved structured schemas
 - No execution path exists without policy and, when required, approval
 - Approval-required actions pause correctly
 - Only approved actions execute
@@ -159,7 +171,7 @@ Deliverables:
 - Evidence artifact retrieval/export
 - Reference workflow and fixtures in `examples/change-control-agent`
 - Demo script aligned to the real workflow
-- Optional live model-provider path behind the same guard layer
+- Provider-backed agent reasoning behind the same guard layer
 
 Exit criteria:
 - A full end-to-end change request can be demonstrated
@@ -169,20 +181,20 @@ Exit criteria:
 ## Sequencing Rationale
 - Build contracts and persistence before workflow complexity.
 - Get local development stable before live integrations.
-- Add planning before execution.
+- Add bounded agent reasoning before tool execution.
 - Add approval before live tool actions.
 - Treat audit evidence as a product requirement, not a reporting afterthought.
-- Prove the change-control agent before extracting generic abstractions.
+- Prove the change-control multi-agent workflow before extracting generic abstractions.
 
 ## Assumptions
 - One workflow is enough to prove the platform thesis for MVP.
 - Enterprise buyers will evaluate governance and auditability before breadth.
 - The team prefers a modular monolith first and will extract services only when justified by scale or isolation needs.
 - Postgres and a small set of boring platform dependencies are acceptable for the first release.
-- The first successful demo can use a stub planner and stub connector if governance and auditability are real.
+- Deterministic fixtures are acceptable for tests and early local development, but the product direction for the MVP includes real agent reasoning in bounded roles.
 
 ## Success Measures For MVP
 - Every executed tool action has a linked policy decision and audit trail.
 - High-risk actions cannot execute without approval.
 - Reviewers can reconstruct what happened from persisted records without relying on application logs.
-- The reference change-control workflow is clear enough to guide the next implementation phase.
+- The four bounded agents improve operator workflow quality without taking control away from the system or approvers.

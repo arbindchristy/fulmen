@@ -1,7 +1,7 @@
 # Fulmen Threat Model
 
 ## Scope
-This threat model covers the Fulmen MVP defined in `docs/architecture.md`: a governed AI change-control platform for IT operations with policy enforcement, approval workflows, secure tool access, observability, and audit evidence.
+This threat model covers the Fulmen MVP defined in `docs/architecture.md`: a governed multi-agent change-control workflow for IT operations with bounded AI agent reasoning, policy enforcement, approval workflows, secure tool access, observability, and audit evidence.
 
 The main security constraints from the repository source of truth are:
 
@@ -10,12 +10,20 @@ The main security constraints from the repository source of truth are:
 - Security comes before developer convenience
 - Auditability is a first-class requirement
 
+## Core Principle
+Agents think. Systems enforce. Humans approve.
+
 ## MVP Cut Line
 This threat model applies to the smallest buildable Fulmen slice:
 
-- One governed AI change-control workflow
+- One governed multi-agent change-control workflow
 - One local deployment
 - One PostgreSQL database
+- Four bounded agent roles:
+  - Intake Agent
+  - Planning Agent
+  - Risk & Policy Agent
+  - Execution Agent
 - In-process orchestrator, policy, tool-gateway, and audit modules
 - One stub connector by default
 
@@ -23,7 +31,7 @@ Threats and controls for distributed services, generalized agent frameworks, mul
 
 ## Security Objectives
 - Prevent unauthorized or unapproved operational changes
-- Prevent the model from bypassing governance controls
+- Prevent the agents from bypassing governance controls
 - Protect enterprise credentials, policy bundles, and audit evidence
 - Preserve a trustworthy audit trail for internal and external review
 - Limit blast radius when prompts, tools, or integrations behave unexpectedly
@@ -33,7 +41,7 @@ Threats and controls for distributed services, generalized agent frameworks, mul
 | --- | --- | --- |
 | User to web/API | Human operators and approvers interact with Fulmen | Identity, authorization, input validation |
 | API to orchestrator | Trusted application control flow | Confused deputy and bypass risks |
-| Orchestrator to model provider | Untrusted model output boundary | Prompt injection, unsafe plans, hallucinated actions |
+| Orchestrator to AI agents/model provider | Untrusted agent output boundary | Prompt injection, unsafe plans, hallucinated actions |
 | Orchestrator to policy engine | Decision control boundary | Policy bypass or stale policy application |
 | Orchestrator to tool gateway | Execution boundary | Unauthorized external actions |
 | Tool gateway to enterprise systems | Sensitive operational boundary | Credential misuse and command abuse |
@@ -50,7 +58,7 @@ For MVP, several logical boundaries still exist even though components run in on
 - Tool connector configuration and credential references
 - Audit events and evidence artifacts
 - User identity and role assignments
-- Model prompts, structured plans, and tool results
+- Agent prompts, role outputs, structured plans, and tool results
 
 ## Threat Actors
 - Unauthorized external attacker
@@ -58,23 +66,32 @@ For MVP, several logical boundaries still exist even though components run in on
 - Malicious or careless operator
 - Malicious approver colluding with operator
 - Compromised tool connector or enterprise system
-- Compromised model output due to prompt injection or provider behavior
+- Compromised agent output due to prompt injection or provider behavior
 - Insider with database or infrastructure access
 
 ## Key Threats And Controls
 
-### 1. Model proposes unsafe or unauthorized actions
+### 1. Agents propose unsafe or unauthorized actions
 Risk:
-The model may hallucinate actions, infer hidden capabilities, or be manipulated by prompt injection in change-request context.
+An agent may hallucinate actions, infer hidden capabilities, or be manipulated by prompt injection in change-request context.
 
 Controls:
 - Use strict action schemas in the guard agent.
-- Treat model output as untrusted input.
+- Treat every agent output as untrusted input.
 - Require policy evaluation for every proposed sensitive action.
 - Allow the orchestrator to dispatch only allowlisted action types.
 - Block any action that lacks a matching contract, policy decision, or approval state.
 
-### 2. Direct or indirect bypass of policy checks
+### 2. Risk & Policy Agent is mistaken for the authoritative policy engine
+Risk:
+The system could over-trust the Risk & Policy Agent summary and accidentally let agent reasoning replace policy enforcement.
+
+Controls:
+- Keep the policy engine as the only authoritative decision-maker for allow, deny, or require-approval outcomes.
+- Store the Risk & Policy Agent output separately from the recorded `policy_decision`.
+- Require the approval UI to show system policy decisions distinctly from agent explanations.
+
+### 3. Direct or indirect bypass of policy checks
 Risk:
 An implementation bug could let a tool request execute without a fresh policy decision.
 
@@ -84,7 +101,7 @@ Controls:
 - Record audit events for both decision issuance and execution.
 - Add negative-path tests for missing, expired, or mismatched policy decisions.
 
-### 3. Approval bypass or forged approval state
+### 4. Approval bypass or forged approval state
 Risk:
 A user or service could mark an action approved without valid reviewer authority.
 
@@ -95,7 +112,16 @@ Controls:
 - Record immutable audit events for approval creation and approval outcome.
 - Reject execution if approval status does not match the exact action fingerprint.
 
-### 4. Credential leakage from tool integrations
+### 5. Execution Agent exceeds its role
+Risk:
+The Execution Agent could be given tool-facing authority or allowed to collapse reasoning and execution into one uncontrolled step.
+
+Controls:
+- Keep the Execution Agent limited to reasoning about approved execution sequencing and result interpretation.
+- Require the tool gateway to accept only system-issued requests after policy and approval checks.
+- Do not expose connector credentials or tool clients to agent code paths.
+
+### 6. Credential leakage from tool integrations
 Risk:
 Connector credentials may be exposed through logs, prompts, database records, or operator-visible output.
 
@@ -106,7 +132,7 @@ Controls:
 - Give each connector least-privilege credentials scoped to its allowed action set.
 - Limit which connector fields can be surfaced in UI and model context.
 
-### 5. Audit trail tampering or deletion
+### 7. Audit trail tampering or deletion
 Risk:
 An attacker or privileged insider could modify or remove records to hide unauthorized behavior.
 
@@ -117,17 +143,18 @@ Controls:
 - Restrict delete privileges for audit tables and evidence stores.
 - Periodically export signed audit snapshots for external review if required.
 
-### 6. Cross-tenant or cross-request data leakage
+### 8. Cross-agent or cross-request context leakage
 Risk:
-A user could access another tenant's change requests or the model could receive unrelated sensitive context.
+A user could access another tenant's change requests or one agent could receive unrelated sensitive context from another request or role.
 
 Controls:
 - Apply tenant scoping at every API query and database access path.
 - Include `tenant_id` on all tenant-scoped tables.
 - Filter prompt context to the minimum relevant request data.
+- Filter agent context to the minimum required for that specific role.
 - Avoid broad search or retrieval across tenant boundaries in MVP.
 
-### 7. Tool connector abuse and excessive blast radius
+### 9. Tool connector abuse and excessive blast radius
 Risk:
 A connector with broad permissions could perform harmful changes even when the requested operation is narrow.
 
@@ -138,7 +165,7 @@ Controls:
 - Log request payload hash, actor, target, and result summary for every execution.
 - Prefer dry-run or validation-capable tool APIs where available.
 
-### 8. Denial of service through expensive runs or approval backlog
+### 10. Denial of service through expensive multi-agent runs or approval backlog
 Risk:
 Attackers or misuse could flood the system with change requests, runs, or pending approvals.
 
@@ -148,7 +175,7 @@ Controls:
 - Expire stale approval requests.
 - Add a separate worker only if synchronous execution becomes a real bottleneck.
 
-### 9. Sensitive data overexposure in prompts and evidence
+### 11. Sensitive data overexposure in prompts and evidence
 Risk:
 Raw operational details, credentials, or internal topology may leak to model providers or stored artifacts.
 
@@ -158,7 +185,7 @@ Controls:
 - Apply retention classes to evidence artifacts.
 - Support provider-specific data handling review before production use.
 
-### 10. Supply-chain or dependency compromise
+### 12. Supply-chain or dependency compromise
 Risk:
 A compromised package or model SDK could undermine control boundaries.
 
@@ -184,8 +211,9 @@ Controls:
 - No secret values are stored in application tables or exposed to models.
 - Audit events are immutable and retained independently of workflow success.
 - Tool gateway requests are allowlisted, authenticated, authorized, and logged.
-- Prompt construction uses only request-scoped and sanitized context.
+- Agent prompt construction uses only request-scoped, role-scoped, and sanitized context.
 - Local development stubs must exercise the same policy, approval, and audit path as live integrations.
+- Intake, Planning, Risk & Policy, and Execution Agents must remain advisory; system components remain authoritative.
 
 ## Local Development Profile
 The local development threat posture must reflect the intended production controls without requiring production infrastructure.
@@ -194,13 +222,13 @@ The local development threat posture must reflect the intended production contro
 - One PostgreSQL instance
 - Local API and web processes
 - Seeded local users and roles
-- Stub model planner or provider-backed planner behind the same guard layer
+- Provider-backed or fixture-backed agent roles behind the same guard layer
 - Stub tool connector behind the same tool-gateway interface
 
 ### Acceptable MVP substitutions
 - Local filesystem evidence storage instead of object storage
 - Environment-variable secrets instead of a production secret manager
-- Deterministic stub planner instead of a live model provider
+- Deterministic agent fixtures instead of live provider-backed agents during tests and early scaffolding work
 
 ### Non-negotiable controls, even in local development
 - No direct model-to-tool path
@@ -208,12 +236,14 @@ The local development threat posture must reflect the intended production contro
 - Approval enforcement for approval-required actions
 - Immutable audit events for all state-changing operations
 - Redaction of secrets from logs and evidence
+- Clear separation between agent reasoning output and system enforcement state
 
 ## Implementation Risks And Mitigations
 | Risk | Why it matters | Mitigation |
 | --- | --- | --- |
 | Over-building distributed services too early | Increases attack surface and operational failure modes | Ship as modular monolith first; keep clear internal interfaces |
-| Over-depending on live external systems during early development | Slows buildability and makes tests flaky | Default to stub planner and stub connector until the governed slice is proven |
+| Over-trusting agent reasoning in places where system enforcement is required | Blurs control boundaries and weakens auditability | Keep policy, approvals, tool authorization, audit logging, and persistence system-owned |
+| Over-depending on live external systems during early development | Slows buildability and makes tests flaky | Support deterministic agent fixtures and a stub connector until the governed slice is proven |
 | Embedding policy in prompts instead of code/data | Hard to review, test, and audit | Store policy bundles as versioned artifacts in `packages/policies` |
 | Letting tool adapters define their own authorization logic | Creates inconsistent enforcement | Centralize authorization in policy engine and orchestrator |
 | Mixing audit logs with mutable app logs | Weakens evidentiary quality | Use structured audit events with append-only discipline |
@@ -224,6 +254,7 @@ The local development threat posture must reflect the intended production contro
 - Human approvers can still make poor decisions; governance reduces but does not eliminate this risk.
 - If an enterprise tool account is over-privileged outside Fulmen, platform controls cannot fully contain the external blast radius.
 - Model providers remain an external trust dependency even with constrained prompting and structured outputs.
+- Agent role confusion can still create operator misunderstanding if the UI does not distinguish agent reasoning from system decisions clearly.
 
 ## Security Review Gates
 Before implementation begins, the team should verify:
@@ -233,3 +264,4 @@ Before implementation begins, the team should verify:
 - Audit evidence requirements are represented in acceptance criteria, not left as future work.
 - Connector credential handling is designed around secret references only.
 - Local development shortcuts do not bypass production governance controls.
+- The Risk & Policy Agent is not allowed to replace the system policy engine in any code path.

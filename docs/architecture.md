@@ -1,7 +1,7 @@
 # Fulmen Architecture
 
 ## Purpose
-Fulmen is a security-first, governed multi-agent platform for enterprise automation in regulated environments. The initial MVP is a governed AI change-control agent for IT operations.
+Fulmen is a security-first, governed multi-agent platform for enterprise automation in regulated environments. The initial MVP is a governed multi-agent change-control workflow for IT operations.
 
 This document treats `README.md` and `AGENTS.md` as the source of truth and optimizes for:
 
@@ -11,11 +11,15 @@ This document treats `README.md` and `AGENTS.md` as the source of truth and opti
 - Simplicity
 - Enterprise credibility
 
+## Core Principle
+Agents think. Systems enforce. Humans approve.
+
 ## MVP Definition
 
 ### In scope
 - One enterprise-facing control plane for one governed workflow
-- One and only one MVP workflow: change-control for IT operations
+- One and only one MVP workflow: change control for IT operations
+- Real AI agents for bounded reasoning tasks inside that workflow
 - Policy evaluation before any sensitive action
 - Human approval checkpoints for high-risk changes
 - Secure tool access through a gateway, not direct model-to-tool execution
@@ -34,12 +38,14 @@ This document treats `README.md` and `AGENTS.md` as the source of truth and opti
 - Complex event-driven microservice deployment for the first release
 
 ## Architecture Principles
+- Agents reason only within bounded workflow roles.
 - Policy before privilege: every sensitive action is evaluated by the policy engine first.
-- No direct model-to-tool execution: the model may propose actions, but only the orchestrator and tool gateway may issue them after policy and approval checks.
+- No direct model-to-tool execution: agents may propose interpretations, plans, and execution-ready steps, but only the orchestrator and tool gateway may issue actions after policy and approval checks.
 - Audit by default: all inputs, policy decisions, approvals, tool requests, and result summaries produce immutable audit events.
 - Boring deployment first: MVP should ship as a modular monolith with internal service boundaries preserved in the monorepo.
 - Least privilege everywhere: users, services, tools, and data stores get the minimum access required.
 - Clear separation of duties: policy, orchestration, tool execution, and audit capture remain distinct responsibilities.
+- System control over governance: policy enforcement, approval state, tool authorization, audit logging, and persistence are system responsibilities, not agent responsibilities.
 
 ## Target System Shape
 
@@ -59,15 +65,15 @@ This keeps the design simple while preserving clean seams for later extraction i
 | `apps/api` | Required | Single HTTP ingress and orchestration entrypoint |
 | `apps/web` | Required | Minimal operator and approver UI |
 | `services/orchestrator` | Required | In-process workflow state machine for the change-control flow |
-| `services/guard-agent` | Required | Structured planning and validation layer around model output |
+| `services/guard-agent` | Required | Structured prompt, role, and validation layer around AI agent outputs |
 | `services/policy-engine` | Required | In-process policy decision evaluation |
 | `services/tool-gateway` | Required | One stub connector plus one execution abstraction |
 | `services/audit` | Required | Append-only audit event writer and reader |
 | `packages/contracts` | Required | API, event, and schema contracts |
 | `packages/policies` | Required | Versioned change-control policy bundle |
+| Provider-backed bounded agent reasoning | Required | The shipped MVP uses real AI agents; deterministic fixtures are acceptable only for tests and scaffolding work |
 | `packages/ui` | Deferred | Use only if shared UI primitives are actually needed |
 | `packages/sdk` | Deferred | No SDK needed to prove the MVP |
-| Live model-provider integration | Deferred | A deterministic stub planner is enough for the first governed slice |
 | External object storage service | Deferred | Local filesystem is enough for MVP evidence artifacts |
 | External queue or broker | Deferred | Use in-process jobs or synchronous orchestration first |
 | Separate network deployment of `services/*` | Deferred | Keep services as code modules inside the API process |
@@ -77,7 +83,8 @@ This keeps the design simple while preserving clean seams for later extraction i
 The MVP architecture stops at a single governed vertical slice:
 
 - One tenant in local development
-- One agent definition: change-control
+- One multi-agent workflow: change control
+- Four bounded AI agent roles: Intake, Planning, Risk & Policy, and Execution
 - One workflow template for change review and execution
 - One policy bundle for change-control actions
 - One stub or simulated tool connector by default
@@ -85,14 +92,24 @@ The MVP architecture stops at a single governed vertical slice:
 
 Anything that introduces cross-domain agent orchestration, multiple workflow families, distributed infrastructure, or pluggable integrations beyond the single change-control slice is beyond the MVP cut line.
 
+### AI Agent Roles
+The MVP uses real AI agents, but only inside one governed workflow. These are reasoning roles, not autonomous control planes.
+
+| Agent | Bounded responsibility | Explicit non-responsibilities |
+| --- | --- | --- |
+| Intake Agent | Normalize operator input into structured change context and identify missing information | Cannot persist requests, assign approvals, or invoke tools |
+| Planning Agent | Propose bounded plan steps and execution hypotheses | Cannot approve changes, enforce policy, or execute tools |
+| Risk & Policy Agent | Summarize risk, identify policy-relevant factors, and explain why actions may need review | Cannot issue the authoritative policy decision |
+| Execution Agent | Reason about approved execution sequencing and summarize observed outcomes | Cannot call tools directly or bypass approval state |
+
 ### Core components
 | Component | Responsibility | Security posture |
 | --- | --- | --- |
 | Web app | Submit change requests, review evidence, approve or reject actions, inspect audit history | Human users authenticate here; no direct access to tools |
 | API app | AuthN/AuthZ, request validation, workflow APIs, orchestration entrypoint | Enforces tenancy and RBAC before domain logic |
-| Orchestrator | Drives workflow state machine, calls model, requests policy checks, pauses for approval, dispatches tool actions through gateway | Cannot bypass policy engine or audit service |
-| Guard agent | Shapes model prompts, constrains model outputs to approved action schemas, validates plan structure | Never executes tools directly |
-| Policy engine | Evaluates whether actions are allowed, denied, or require approval | Only source of truth for sensitive action gating |
+| Orchestrator | Drives the multi-agent workflow state machine, coordinates agent turns, requests policy checks, pauses for approval, dispatches tool actions through gateway | Cannot bypass policy engine or audit service |
+| Guard agent | Shapes prompts for the Intake, Planning, Risk & Policy, and Execution agents, constrains outputs to approved schemas, validates role boundaries | Never executes tools directly |
+| Policy engine | Evaluates whether actions are allowed, denied, or require approval | Only source of truth for sensitive action gating; the Risk & Policy Agent is advisory only |
 | Tool gateway | Executes approved tool operations against enterprise systems through allowlisted connectors | Holds least-privilege credentials and logs all invocations |
 | Audit service | Stores append-only audit events and evidence references | Write-once event discipline for reviewability |
 
@@ -103,20 +120,24 @@ For the first implementation, the orchestrator, guard agent, policy engine, tool
 - Do not introduce service-to-service networking in MVP.
 - Do not introduce async infrastructure unless a concrete bottleneck appears.
 - Prefer a synchronous request model plus persisted run state, with background work added only when a real need appears.
+- Keep the four agent roles as in-process reasoning components inside the governed workflow, not as separate deployables.
 
 ## Request Lifecycle
 1. An authenticated operator submits a change request with target systems, requested change window, rationale, and supporting context.
 2. The API validates the request, creates a `change_request` record, and emits an initial audit event.
-3. The orchestrator starts a run and asks the guard agent to produce a structured plan limited to approved action schemas.
-4. For each proposed action, the orchestrator requests a policy decision.
-5. If policy returns `deny`, the action is blocked and recorded.
-6. If policy returns `require_approval`, the orchestrator creates an approval request and pauses execution.
-7. An authorized approver reviews the proposed action, policy reasoning, and evidence, then approves or rejects it.
-8. Only approved actions are sent to the tool gateway.
-9. The tool gateway executes the action with connector-specific credentials and returns structured results.
-10. The orchestrator records outputs, updates workflow state, and produces a final outcome with linked audit evidence.
+3. The orchestrator invokes the Intake Agent to normalize the request into structured change context.
+4. The orchestrator invokes the Planning Agent to produce a bounded plan limited to approved action schemas.
+5. The orchestrator invokes the Risk & Policy Agent to summarize risk and policy-relevant facts for each proposed action.
+6. The system policy engine evaluates each proposed action and returns the authoritative decision.
+7. If policy returns `deny`, the action is blocked and recorded.
+8. If policy returns `require_approval`, the orchestrator creates an approval request and pauses execution.
+9. An authorized approver reviews the proposed action, policy decision, agent reasoning summary, and evidence, then approves or rejects it.
+10. For approved actions, the orchestrator invokes the Execution Agent to reason about safe step ordering and result interpretation.
+11. Only system-approved actions are sent to the tool gateway.
+12. The tool gateway executes the action with connector-specific credentials and returns structured results.
+13. The orchestrator records outputs, updates workflow state, and produces a final outcome with linked audit evidence.
 
-For the first working slice, step 9 should use a stub connector that simulates a governed change action while exercising the same policy, approval, and audit path as a real connector.
+For the first working slice, tool execution should use a stub connector that simulates a governed change action while exercising the same policy, approval, and audit path as a real connector.
 
 ## Monorepo Tree Refinement
 The existing top-level layout is correct. The refinement below keeps the same shape while making ownership and boundaries explicit.
@@ -141,12 +162,14 @@ apps/
 services/
   orchestrator/
     src/
+      agent-workflow/
       runs/
       planners/
       state-machine/
   guard-agent/
     src/
       prompts/
+      roles/
       schemas/
       validators/
   policy-engine/
@@ -201,24 +224,25 @@ docs/
 ### Refinement rationale
 - `apps/api` stays the single ingress point for the MVP.
 - `services/*` remain code modules with explicit interfaces, not separate distributed systems yet.
+- The four agent roles should live inside the workflow implementation, not as generic external worker classes or separate runtimes.
 - `packages/contracts` becomes the source of truth for API, event, policy, and schema contracts.
 - `packages/policies` holds reviewable policy bundles instead of embedding rules in model prompts or business logic.
 - `examples/change-control-agent` contains the canonical reference workflow and fixtures used in demos and tests.
 - `packages/sdk` and broader shared package extraction should wait until duplication actually appears.
 
 ## Domain Model
-The MVP domain should stay narrow and center on governed change execution.
+The MVP domain should stay narrow and center on governed change execution with bounded multi-agent reasoning.
 
 | Entity | Purpose | Key relationships |
 | --- | --- | --- |
 | Tenant | Logical enterprise boundary for data and policy scope | Owns users, agents, policies, tools, and requests |
 | User | Authenticated operator, approver, or auditor | Belongs to a tenant; receives roles |
 | Role | RBAC grouping such as operator, approver, auditor, admin | Assigned to users |
-| Agent Definition | Metadata for the change-control agent | References workflow template and policy bundle |
+| Agent Definition | Metadata for one bounded AI agent role inside the workflow | References workflow template, role type, and policy-aware constraints |
 | Workflow Template | Versioned definition of the governed workflow | Used to create runs |
 | Change Request | Business object representing a requested operational change | Created by user; has many runs, approvals, and audit events |
 | Run | One execution attempt of a workflow for a change request | Has many step executions and policy decisions |
-| Step Execution | Individual workflow step state and result | Belongs to a run |
+| Step Execution | Individual workflow step or agent turn state and result | Belongs to a run |
 | Policy Bundle | Versioned set of rules for action gating | Evaluated against requested actions |
 | Policy Decision | Result of policy evaluation for an action | Belongs to a run and optional tool request |
 | Approval Request | Human review task generated by policy | Targets a user or role; tied to a change request and run |
@@ -240,7 +264,7 @@ For local development, PostgreSQL remains the only required infrastructure depen
 | `users` | Human identities | `id`, `tenant_id`, `external_subject`, `email`, `display_name`, `status`, `created_at` |
 | `roles` | RBAC roles | `id`, `tenant_id`, `name`, `description` |
 | `user_roles` | User-role mapping | `user_id`, `role_id`, `granted_at`, `granted_by` |
-| `agent_definitions` | Versioned agent metadata | `id`, `tenant_id`, `name`, `workflow_template_id`, `policy_bundle_id`, `status`, `version` |
+| `agent_definitions` | Versioned metadata for bounded workflow agent roles | `id`, `tenant_id`, `name`, `agent_role`, `workflow_template_id`, `policy_bundle_id`, `status`, `version` |
 | `workflow_templates` | Versioned workflow definitions | `id`, `tenant_id`, `name`, `version`, `definition_json`, `created_at` |
 | `change_requests` | Requested operational changes | `id`, `tenant_id`, `request_key`, `title`, `description`, `requested_by`, `risk_level`, `status`, `scheduled_start_at`, `scheduled_end_at`, `created_at` |
 | `change_request_targets` | Systems or resources impacted by a request | `id`, `change_request_id`, `target_type`, `target_ref`, `environment`, `metadata_json` |
@@ -338,14 +362,14 @@ The MVP must be runnable by one developer on a MacBook without distributed infra
 
 #### Runs in-process inside `apps/api`
 - Orchestrator
-- Guard agent
+- Guard agent and bounded AI agent role logic
 - Policy engine
 - Tool gateway
 - Audit service
 
-#### Stubbed or mocked by default in MVP
+#### Supported local substitutions
 - External IdP: replace with a local development auth mode using seeded users and roles
-- Model provider: allow either a live provider key or a deterministic stub planner for tests and local development
+- Model provider: allow either a live provider key or deterministic fixtures for tests and pre-integration work, while preserving the same four agent roles
 - Tool connector: default to a stub change-control connector that simulates validation and execution
 - Secret manager: use environment variables or local dev secrets only; keep the `credential_ref` abstraction so production can swap in a real secret manager
 - Evidence object storage: use local filesystem paths
@@ -369,8 +393,8 @@ The first implementation should move from foundation to one governed vertical sl
    Ensure every write path emits immutable audit events before any model or tool work exists.
 4. Policy engine
    Implement a small in-process policy evaluator with one reviewable change-control policy bundle.
-5. Guarded planning
-   Add structured planner output for the change-control flow with a deterministic stub path first and provider-backed planning second.
+5. Multi-agent reasoning layer
+   Add the Intake Agent, Planning Agent, Risk & Policy Agent, and Execution Agent with strict input and output schemas and system-owned orchestration.
 6. Run orchestration
    Persist runs and step executions and enforce the state machine that requires policy before execution.
 7. Approval flow
@@ -380,7 +404,7 @@ The first implementation should move from foundation to one governed vertical sl
 9. Evidence capture
    Persist evidence references and produce a reviewable audit trail for the completed run.
 
-The first working vertical slice is complete when a local user can create a change request, start a run, receive a structured plan, get a policy decision, approve a gated step, execute a stub connector action, and inspect the full audit record.
+The first working vertical slice is complete when a local user can create a change request, trigger the Intake and Planning Agents, receive a structured plan, review the Risk & Policy Agent summary alongside the system policy decision, approve a gated step, execute a stub connector action with Execution Agent assistance, and inspect the full audit record.
 
 ## Assumptions
 - MVP focuses on one primary workflow: IT change control.
@@ -389,7 +413,7 @@ The first working vertical slice is complete when a local user can create a chan
 - Policy bundles are human-authored, versioned, and reviewable.
 - Tool access is allowlisted per connector and action type.
 - Audit events must be retained even when workflow runs fail.
-- Model providers may vary later, but the governance boundary must stay provider-agnostic.
+- Model providers may vary later, but the governance boundary must stay provider-agnostic and system-controlled.
 
 ## Open Decisions
 - Whether approval assignment is role-based only or supports named approvers in MVP
