@@ -12,9 +12,15 @@ export interface RecordAuditEventInput {
   payload?: Record<string, unknown>;
 }
 
+export interface AuditEventStore {
+  append(event: AuditEvent): Promise<void>;
+}
+
 export class AuditService {
-  record(input: RecordAuditEventInput): AuditEvent {
-    return auditEventSchema.parse({
+  constructor(private readonly store?: AuditEventStore) {}
+
+  async record(input: RecordAuditEventInput): Promise<AuditEvent> {
+    const event = auditEventSchema.parse({
       id: randomUUID(),
       tenantId: input.tenantId,
       eventType: input.eventType,
@@ -25,5 +31,9 @@ export class AuditService {
       occurredAt: new Date().toISOString(),
       payload: input.payload ?? {},
     });
+
+    await this.store?.append(event);
+
+    return event;
   }
 }

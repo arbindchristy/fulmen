@@ -1,0 +1,2 @@
+ALTER TABLE change_requests
+ADD COLUMN IF NOT EXISTS rationale TEXT NOT NULL DEFAULT '';

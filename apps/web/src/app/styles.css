@@ -74,11 +74,18 @@ body {
   margin-top: 24px;
 }
 
+.primary-panel {
+  margin-top: 24px;
+}
+
+.secondary-grid {
+  margin-top: 20px;
+}
+
 .panel {
   background: rgba(255, 255, 255, 0.85);
   border: 1px solid rgba(23, 32, 51, 0.08);
   border-radius: 18px;
-  min-height: 220px;
   padding: 24px;
 }
 
@@ -91,6 +98,201 @@ body {
   color: #4c5970;
 }
 
+.change-request-form {
+  display: grid;
+  gap: 16px;
+}
+
+.change-request-form label {
+  color: #24324a;
+  display: grid;
+  font-size: 0.95rem;
+  font-weight: 600;
+  gap: 8px;
+}
+
+.change-request-form input,
+.change-request-form select,
+.change-request-form textarea {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(23, 32, 51, 0.14);
+  border-radius: 12px;
+  color: #172033;
+  font: inherit;
+  padding: 12px 14px;
+}
+
+.change-request-form textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.form-row {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.form-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.form-actions button {
+  background: linear-gradient(135deg, #0f5d5e, #1d7a61);
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 12px 18px;
+}
+
+.form-actions button:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.submission-state {
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 8px 12px;
+}
+
+.submission-idle {
+  background: #e8eef6;
+  color: #39526d;
+}
+
+.submission-submitting {
+  background: #fff7d6;
+  color: #7f5f00;
+}
+
+.submission-success {
+  background: #dff5e8;
+  color: #136841;
+}
+
+.submission-error {
+  background: #ffe1e1;
+  color: #9a1c1c;
+}
+
+.error-message {
+  color: #9a1c1c;
+  margin: 0;
+}
+
+.preview-stack {
+  border-top: 1px solid rgba(23, 32, 51, 0.08);
+  display: grid;
+  gap: 18px;
+  margin-top: 24px;
+  padding-top: 24px;
+}
+
+.preview-section {
+  background: rgba(245, 248, 252, 0.85);
+  border: 1px solid rgba(23, 32, 51, 0.08);
+  border-radius: 16px;
+  padding: 18px;
+}
+
+.preview-section h3,
+.preview-section h4 {
+  margin-top: 0;
+}
+
+.preview-metadata {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.preview-metadata div {
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.preview-metadata dt {
+  color: #4c5970;
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.preview-metadata dd {
+  margin: 0;
+}
+
+.action-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.action-list li {
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.action-list p,
+.action-list small {
+  display: block;
+  margin-top: 6px;
+}
+
+.governed-action-list {
+  display: grid;
+  gap: 12px;
+}
+
+.governed-action-card {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(23, 32, 51, 0.08);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.card-header {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.approval-chip {
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 8px 10px;
+}
+
+.approval-required {
+  background: #ffe5cf;
+  color: #9a4d00;
+}
+
+.approval-not-required {
+  background: #dff5e8;
+  color: #136841;
+}
+
+.policy-line {
+  border-top: 1px solid rgba(23, 32, 51, 0.08);
+  margin-bottom: 0;
+  padding-top: 12px;
+}
+
 @media (max-width: 640px) {
   .page-shell {
     padding: 24px 16px 48px;
@@ -99,5 +301,14 @@ body {
   .hero,
   .panel {
     padding: 20px;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .card-header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

@@ -9,10 +9,12 @@ describe('@fulmen/policy-engine', () => {
     const decision = service.evaluate(
       {
         id: 'execute-change',
+        kind: 'execution',
+        title: 'Execute router restart',
         actionType: 'change.execute',
         resourceRef: 'router-01',
         summary: 'Execute router restart',
-        requiresApproval: true,
+        rationale: 'Operator requested a restart.',
       },
       'high',
     );

@@ -63,16 +63,19 @@ export function App() {
     <main className="page-shell">
       <header className="hero">
         <p className="eyebrow">Fulmen MVP</p>
-        <h1>Governed change-control agent scaffold</h1>
+        <h1>Governed multi-agent change preview</h1>
         <p className="subtitle">
-          This UI is intentionally narrow: one workflow, one control plane, one local
-          development profile.
+          Submit one change-control request, inspect bounded agent reasoning, and see
+          the system policy posture before any execution path exists.
         </p>
         <div className={`health health-${health.status}`}>{health.message}</div>
       </header>
 
-      <section className="grid">
+      <section className="primary-panel">
         <ChangeRequestPanel />
+      </section>
+
+      <section className="grid secondary-grid">
         <ApprovalQueue />
         <AuditPanel />
       </section>

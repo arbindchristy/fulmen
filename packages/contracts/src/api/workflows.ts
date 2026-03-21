@@ -9,12 +9,20 @@ export const runStatusSchema = z.enum([
   'failed',
 ]);
 
+export const plannedActionKindSchema = z.enum([
+  'validation',
+  'execution',
+  'verification',
+]);
+
 export const plannedActionSchema = z.object({
   id: z.string(),
+  kind: plannedActionKindSchema,
+  title: z.string(),
   actionType: z.string(),
   resourceRef: z.string(),
   summary: z.string(),
-  requiresApproval: z.boolean(),
+  rationale: z.string(),
 });
 
 export const structuredPlanSchema = z.object({

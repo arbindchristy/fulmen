@@ -6,11 +6,9 @@ export interface DevAuthContext {
   role: string;
 }
 
-declare global {
-  namespace Express {
-    interface Request {
-      auth: DevAuthContext;
-    }
+declare module 'express-serve-static-core' {
+  interface Request {
+    auth: DevAuthContext;
   }
 }
 

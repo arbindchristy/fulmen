@@ -210,6 +210,7 @@ Controls:
 - High-risk actions must require a recorded approval decision before execution.
 - No secret values are stored in application tables or exposed to models.
 - Audit events are immutable and retained independently of workflow success.
+- Governed preview responses must clearly separate agent-generated risk summaries from authoritative system policy decisions.
 - Tool gateway requests are allowlisted, authenticated, authorized, and logged.
 - Agent prompt construction uses only request-scoped, role-scoped, and sanitized context.
 - Local development stubs must exercise the same policy, approval, and audit path as live integrations.
@@ -221,7 +222,7 @@ The local development threat posture must reflect the intended production contro
 ### Required locally
 - One PostgreSQL instance
 - Local API and web processes
-- Seeded local users and roles
+- Seeded or auto-provisioned local users and roles
 - Provider-backed or fixture-backed agent roles behind the same guard layer
 - Stub tool connector behind the same tool-gateway interface
 

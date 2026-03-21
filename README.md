@@ -29,6 +29,14 @@ The MVP wedge remains one governed workflow: change control for IT operations.
 - The Risk & Policy Agent summarizes risk and policy-relevant facts.
 - The Execution Agent reasons about approved execution sequencing and result interpretation.
 
+The currently implemented vertical slice stops at governed preview generation:
+
+- operators submit a change request
+- the request is persisted in PostgreSQL
+- the bounded Intake, Planning, and Risk & Policy roles produce structured preview output
+- the system policy engine attaches authoritative allow or approval-required decisions
+- submission and preview generation are written to the audit trail
+
 System components remain authoritative for:
 
 - Policy evaluation
@@ -64,6 +72,6 @@ System components remain authoritative for:
 - No direct model-to-tool execution
 - No external broker, queue, cache, or Kubernetes dependency
 - No generic swarm or open-ended multi-agent platform scope
-- No full governed workflow implementation yet
+- Approval task processing and tool execution are still deferred beyond governed preview
 
 See `docs/architecture.md`, `docs/threat-model.md`, and `docs/roadmap.md` for the approved planning baseline.

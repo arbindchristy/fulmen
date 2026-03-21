@@ -1,62 +1,128 @@
-import type { CreateChangeRequestInput, PlannedAction, PolicyDecision } from '@fulmen/contracts';
+import type {
+  ChangeRequest,
+  CreateChangeRequestInput,
+  GovernedPreviewResponse,
+  RiskPolicyAssessment,
+} from '@fulmen/contracts';
 import type { AuditService } from '@fulmen/audit';
 import type { GuardAgent } from '@fulmen/guard-agent';
 import type { PolicyDecisionService } from '@fulmen/policy-engine';
-import type { ToolGateway } from '@fulmen/tool-gateway';
 
-import { buildPlanWithGuardAgent } from './planners/stub-planner.js';
-import { createPendingRun } from './state-machine/run-state-machine.js';
+import {
+  createDeterministicIntakeAgent,
+  createDeterministicPlanningAgent,
+  createDeterministicRiskPolicyAgent,
+  type IntakeAgent,
+  type PlanningAgent,
+  type RiskPolicyAgent,
+} from './agent-workflow/agents.js';
 
 export interface OrchestratorDependencies {
   auditService: AuditService;
-  guardAgent: GuardAgent;
+  intakeAgent: IntakeAgent;
+  planningAgent: PlanningAgent;
+  riskPolicyAgent: RiskPolicyAgent;
   policyDecisionService: PolicyDecisionService;
-  toolGateway: ToolGateway;
-}
-
-export interface OrchestrationPreview {
-  run: ReturnType<typeof createPendingRun>;
-  planSummary: string;
-  decisions: PolicyDecision[];
 }
 
 export interface Orchestrator {
-  preview(input: CreateChangeRequestInput): OrchestrationPreview;
-  executeStubAction(action: PlannedAction): ReturnType<ToolGateway['execute']>;
+  preview(input: {
+    changeRequest: ChangeRequest;
+    submission: CreateChangeRequestInput;
+  }): Promise<GovernedPreviewResponse>;
 }
 
 export function createOrchestrator(
   dependencies: OrchestratorDependencies,
 ): Orchestrator {
   return {
-    preview(input: CreateChangeRequestInput): OrchestrationPreview {
-      const run = createPendingRun(`Run prepared for ${input.title}`);
-      const plan = buildPlanWithGuardAgent(dependencies.guardAgent, input);
-      const decisions = plan.actions.map((action: PlannedAction) =>
-        dependencies.policyDecisionService.evaluate(action, input.riskLevel),
-      );
+    async preview({ changeRequest, submission }) {
+      const normalizedRequest = dependencies.intakeAgent.normalize(submission);
+      const actionPlan = dependencies.planningAgent.plan(normalizedRequest);
 
-      dependencies.auditService.record({
-        tenantId: '00000000-0000-0000-0000-000000000001',
+      const governedActions = actionPlan.actions.map((action) => {
+        const riskAssessment = dependencies.riskPolicyAgent.assess({
+          action,
+          normalizedRequest,
+          requestedRiskLevel: submission.riskLevel,
+        });
+        const policyDecision = dependencies.policyDecisionService.evaluate(
+          action,
+          submission.riskLevel,
+        );
+
+        return {
+          action,
+          riskAssessment,
+          policyDecision,
+          approvalRequired: policyDecision.decision === 'require_approval',
+        };
+      });
+
+      await dependencies.auditService.record({
+        tenantId: changeRequest.tenantId,
         eventType: 'run.started',
-        entityType: 'run',
-        entityId: 'preview',
+        entityType: 'change_request',
+        entityId: changeRequest.id,
         actorType: 'system',
         actorId: 'orchestrator',
         payload: {
-          planId: plan.planId,
-          actionCount: plan.actions.length,
+          preview: true,
+          actionCount: actionPlan.actions.length,
+          approvalRequiredActions: governedActions
+            .filter((action) => action.approvalRequired)
+            .map((action) => action.action.id),
         },
       });
 
       return {
-        run,
-        planSummary: plan.summary,
-        decisions,
+        changeRequest,
+        normalizedRequest,
+        actionPlan,
+        governedActions,
+        previewSummary: buildPreviewSummary(governedActions.map((action) => ({
+          approvalRequired: action.approvalRequired,
+          riskAssessment: action.riskAssessment,
+        }))),
       };
-    },
-    executeStubAction(action: PlannedAction) {
-      return dependencies.toolGateway.execute(action);
     },
   };
 }
+
+export function createDefaultOrchestrator(dependencies: {
+  auditService: AuditService;
+  guardAgent: GuardAgent;
+  policyDecisionService: PolicyDecisionService;
+}): Orchestrator {
+  return createOrchestrator({
+    auditService: dependencies.auditService,
+    intakeAgent: createDeterministicIntakeAgent(dependencies.guardAgent),
+    planningAgent: createDeterministicPlanningAgent(dependencies.guardAgent),
+    riskPolicyAgent: createDeterministicRiskPolicyAgent(dependencies.guardAgent),
+    policyDecisionService: dependencies.policyDecisionService,
+  });
+}
+
+function buildPreviewSummary(
+  actions: Array<{
+    approvalRequired: boolean;
+    riskAssessment: RiskPolicyAssessment;
+  }>,
+): string {
+  const approvalCount = actions.filter((action) => action.approvalRequired).length;
+  const highRiskCount = actions.filter(
+    (action) => action.riskAssessment.riskLevel === 'high',
+  ).length;
+
+  if (approvalCount > 0) {
+    return `Preview prepared with ${approvalCount} action${approvalCount === 1 ? '' : 's'} requiring approval before execution.`;
+  }
+
+  if (highRiskCount > 0) {
+    return 'Preview prepared with high-risk context captured, but the current policy bundle did not require approval for every step.';
+  }
+
+  return 'Preview prepared with bounded actions and attached system policy decisions.';
+}
+
+export * from './agent-workflow/agents.js';

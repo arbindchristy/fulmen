@@ -137,6 +137,16 @@ For the first implementation, the orchestrator, guard agent, policy engine, tool
 12. The tool gateway executes the action with connector-specific credentials and returns structured results.
 13. The orchestrator records outputs, updates workflow state, and produces a final outcome with linked audit evidence.
 
+The first implemented vertical slice currently stops after step 6 and returns a governed preview response that includes:
+
+- the persisted `change_request`
+- normalized Intake Agent output
+- the Planning Agent action plan
+- the Risk & Policy Agent assessment for each action
+- the authoritative system policy decision and approval requirement for each action
+
+Approval creation, Execution Agent turns, and tool-gateway dispatch remain intentionally deferred until the next slice.
+
 For the first working slice, tool execution should use a stub connector that simulates a governed change action while exercising the same policy, approval, and audit path as a real connector.
 
 ## Monorepo Tree Refinement

@@ -18,10 +18,11 @@ export function createRoutes(dependencies: RouteDependencies): Router {
 
   router.get('/api/v1/system/summary', (_request, response) => {
     response.json({
-      mode: 'mvp-scaffold',
+      mode: 'governed-preview',
       services: {
         audit: typeof dependencies.auditService.record === 'function',
-        guardAgent: typeof dependencies.guardAgent.buildStubPlan === 'function',
+        guardAgent:
+          typeof dependencies.guardAgent.validateStructuredPlan === 'function',
         orchestrator: typeof dependencies.orchestrator.preview === 'function',
       },
     });

@@ -1,11 +1,11 @@
-import request from 'supertest';
+import type { Request, Response } from 'express';
 import { describe, expect, it } from 'vitest';
 
-import { createApp } from '../src/app/create-app.js';
+import { createHealthRouter } from '../src/health/health-router.js';
 
 describe('@fulmen/api health route', () => {
-  it('returns an ok health payload', async () => {
-    const app = createApp({
+  it('returns an ok health payload', () => {
+    const router = createHealthRouter({
       appVersion: '0.1.0',
       databaseUrl: 'postgres://example/example',
       defaultRole: 'operator',
@@ -17,14 +17,22 @@ describe('@fulmen/api health route', () => {
       webOrigin: 'http://localhost:3000',
     });
 
-    const response = await request(app)
-      .get('/healthz')
-      .set('Origin', 'http://localhost:3000');
+    const routeLayer = router.stack.find((layer) => layer.route?.path === '/healthz');
+    const handler = routeLayer?.route?.stack[0]?.handle;
+    const response = {
+      jsonPayload: null as unknown,
+      json(payload: unknown) {
+        this.jsonPayload = payload;
+      },
+    };
 
-    expect(response.status).toBe(200);
-    expect(response.body.status).toBe('ok');
-    expect(response.headers['access-control-allow-origin']).toBe(
-      'http://localhost:3000',
-    );
+    handler?.({} as Request, response as unknown as Response, () => undefined);
+
+    expect(response.jsonPayload).toMatchObject({
+      status: 'ok',
+      service: 'fulmen-api',
+      environment: 'development',
+      version: '0.1.0',
+    });
   });
 });

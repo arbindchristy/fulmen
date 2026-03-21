@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const auditEventTypeSchema = z.enum([
   'change_request.created',
   'change_request.submitted',
+  'change_request.preview_generated',
   'run.started',
   'run.step_started',
   'run.step_completed',
