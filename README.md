@@ -35,6 +35,8 @@ The currently implemented vertical slice stops at governed preview generation:
 - the request is persisted in PostgreSQL
 - the bounded Intake, Planning, and Risk & Policy roles produce structured preview output
 - the system policy engine attaches authoritative allow or approval-required decisions
+- approval-required actions create human approval requests
+- approvers can review and decide those requests in the UI
 - submission and preview generation are written to the audit trail
 
 System components remain authoritative for:
@@ -72,6 +74,6 @@ System components remain authoritative for:
 - No direct model-to-tool execution
 - No external broker, queue, cache, or Kubernetes dependency
 - No generic swarm or open-ended multi-agent platform scope
-- Approval task processing and tool execution are still deferred beyond governed preview
+- Tool execution remains deferred beyond preview and approval
 
 See `docs/architecture.md`, `docs/threat-model.md`, and `docs/roadmap.md` for the approved planning baseline.

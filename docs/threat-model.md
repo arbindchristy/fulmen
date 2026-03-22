@@ -225,6 +225,7 @@ The local development threat posture must reflect the intended production contro
 - Seeded or auto-provisioned local users and roles
 - Provider-backed or fixture-backed agent roles behind the same guard layer
 - Stub tool connector behind the same tool-gateway interface
+- Local approval decisions tied to a concrete dev user identity and role context
 
 ### Acceptable MVP substitutions
 - Local filesystem evidence storage instead of object storage

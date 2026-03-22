@@ -3,6 +3,7 @@ import type { AuditService } from '@fulmen/audit';
 import type { Orchestrator } from '@fulmen/orchestrator';
 
 import type { DevAuthContext } from '../auth/dev-auth.js';
+import type { ApprovalService } from '../approvals/approval-service.js';
 import type { ChangeRequestRepository } from './change-request-repository.js';
 
 export interface ChangeRequestService {
@@ -13,6 +14,7 @@ export interface ChangeRequestService {
 }
 
 interface ChangeRequestServiceDependencies {
+  approvalService: ApprovalService;
   auditService: AuditService;
   changeRequestRepository: ChangeRequestRepository;
   orchestrator: Orchestrator;
@@ -51,15 +53,31 @@ export function createChangeRequestService(
         submission: input,
       });
 
-      const previewReadyRequest =
-        await dependencies.changeRequestRepository.markPreviewReady(
+      const createdApprovals =
+        await dependencies.approvalService.createApprovalRequestsForActions({
+          tenantId: submittedRequest.tenantId,
+          changeRequest: submittedRequest,
+          governedActions: preview.governedActions,
+        });
+
+      const approvalsByActionId = new Map(
+        createdApprovals.map((approval) => [approval.actionId, approval]),
+      );
+
+      const requestWithApprovalState =
+        await dependencies.changeRequestRepository.updateStatus(
           submittedRequest.id,
           submittedRequest.tenantId,
+          createdApprovals.length > 0 ? 'in_review' : 'preview_ready',
         );
 
       const response: GovernedPreviewResponse = {
         ...preview,
-        changeRequest: previewReadyRequest,
+        changeRequest: requestWithApprovalState,
+        governedActions: preview.governedActions.map((action) => ({
+          ...action,
+          approvalRequest: approvalsByActionId.get(action.action.id) ?? null,
+        })),
       };
 
       await dependencies.auditService.record({
@@ -74,6 +92,7 @@ export function createChangeRequestService(
           approvalRequiredActions: response.governedActions
             .filter((action) => action.approvalRequired)
             .map((action) => action.action.id),
+          createdApprovalRequestIds: createdApprovals.map((approval) => approval.id),
         },
       });
 

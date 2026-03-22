@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { approvalRequestSummarySchema } from './approvals.js';
 import { policyDecisionSchema } from '../policy/policy.js';
 import { structuredPlanSchema } from './workflows.js';
 
@@ -93,6 +94,7 @@ export const governedActionPreviewSchema = z.object({
   riskAssessment: riskPolicyAssessmentSchema,
   policyDecision: policyDecisionSchema,
   approvalRequired: z.boolean(),
+  approvalRequest: approvalRequestSummarySchema.nullable().optional(),
 });
 
 export const governedPreviewResponseSchema = z.object({
@@ -107,6 +109,7 @@ export type CreateChangeRequestInput = z.infer<
   typeof createChangeRequestInputSchema
 >;
 export type ChangeRequest = z.infer<typeof changeRequestSchema>;
+export type ChangeRequestStatus = z.infer<typeof changeRequestStatusSchema>;
 export type NormalizedChangeRequest = z.infer<
   typeof normalizedChangeRequestSchema
 >;

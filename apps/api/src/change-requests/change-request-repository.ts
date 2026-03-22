@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
-import type { ChangeRequest, CreateChangeRequestInput } from '@fulmen/contracts';
+import type {
+  ChangeRequest,
+  ChangeRequestStatus,
+  CreateChangeRequestInput,
+} from '@fulmen/contracts';
 import type { DevAuthContext } from '../auth/dev-auth.js';
 import type { Pool, QueryResultRow } from 'pg';
 
@@ -10,7 +14,11 @@ export interface ChangeRequestRepository {
     input: CreateChangeRequestInput,
     context: DevAuthContext,
   ): Promise<ChangeRequest>;
-  markPreviewReady(id: string, tenantId: string): Promise<ChangeRequest>;
+  updateStatus(
+    id: string,
+    tenantId: string,
+    status: ChangeRequestStatus,
+  ): Promise<ChangeRequest>;
 }
 
 export class PostgresChangeRequestRepository
@@ -151,14 +159,18 @@ export class PostgresChangeRequestRepository
     return this.getById(changeRequestId, context.tenantId);
   }
 
-  async markPreviewReady(id: string, tenantId: string): Promise<ChangeRequest> {
+  async updateStatus(
+    id: string,
+    tenantId: string,
+    status: ChangeRequestStatus,
+  ): Promise<ChangeRequest> {
     await this.pool.query(
       `
         UPDATE change_requests
-        SET status = 'preview_ready'
+        SET status = $3
         WHERE id = $1 AND tenant_id = $2
       `,
-      [id, tenantId],
+      [id, tenantId, status],
     );
 
     return this.getById(id, tenantId);

@@ -46,7 +46,7 @@ Today Fulmen has:
 This is acceptable for the current MVP slice only because:
 
 - execution is still deferred
-- approvals are not yet live
+- approval decisions are live only through local-dev auth identity
 - model-provider calls are not yet enabled
 - the current system remains a local-development-first modular monolith
 

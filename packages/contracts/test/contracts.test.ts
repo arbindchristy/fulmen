@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  approvalRequestDetailSchema,
   createChangeRequestInputSchema,
   governedPreviewResponseSchema,
   policyDecisionSchema,
@@ -126,6 +127,20 @@ describe('@fulmen/contracts', () => {
             explanation: 'High-risk change requires approval.',
           },
           approvalRequired: true,
+          approvalRequest: {
+            id: '00000000-0000-0000-0000-000000000211',
+            tenantId: '00000000-0000-0000-0000-000000000001',
+            changeRequestId: '00000000-0000-0000-0000-000000000111',
+            status: 'pending',
+            assignedRole: 'approver',
+            assignedUserId: null,
+            actionId: 'execute-change',
+            actionTitle: 'Apply change',
+            actionSummary: 'Restart the router within the approved window.',
+            actionType: 'change.execute',
+            resourceRef: 'router-01',
+            createdAt: '2026-03-21T12:05:00.000Z',
+          },
         },
       ],
       previewSummary:
@@ -133,5 +148,60 @@ describe('@fulmen/contracts', () => {
     });
 
     expect(preview.governedActions[0]!.approvalRequired).toBe(true);
+  });
+
+  it('validates an approval request detail payload', () => {
+    const detail = approvalRequestDetailSchema.parse({
+      id: '00000000-0000-0000-0000-000000000211',
+      tenantId: '00000000-0000-0000-0000-000000000001',
+      changeRequestId: '00000000-0000-0000-0000-000000000111',
+      status: 'pending',
+      assignedRole: 'approver',
+      assignedUserId: null,
+      actionId: 'execute-change',
+      actionTitle: 'Apply the requested change',
+      actionSummary: 'Restart router-01 during the approved window.',
+      actionType: 'change.execute',
+      resourceRef: 'router-01',
+      createdAt: '2026-03-21T12:05:00.000Z',
+      changeRequest: {
+        id: '00000000-0000-0000-0000-000000000111',
+        requestKey: 'cr-001',
+        title: 'Restart edge router',
+        description: 'Restart router-01 during the approved window.',
+        rationale: 'Recover from a failed daemon.',
+        riskLevel: 'high',
+        targetRef: 'router-01',
+        environment: 'production',
+        requestedBy: '00000000-0000-0000-0000-000000000010',
+        createdAt: '2026-03-21T12:00:00.000Z',
+      },
+      action: {
+        id: 'execute-change',
+        kind: 'execution',
+        title: 'Apply the requested change',
+        actionType: 'change.execute',
+        resourceRef: 'router-01',
+        summary: 'Restart router-01 during the approved window.',
+        rationale: 'Production restart requested by the operator.',
+      },
+      policyDecision: {
+        actionType: 'change.execute',
+        resourceRef: 'router-01',
+        decision: 'require_approval',
+        reasonCode: 'policy.require-approval-high-risk-execution',
+        explanation: 'High-risk change requires approval.',
+      },
+      riskAssessment: {
+        actionId: 'execute-change',
+        riskLevel: 'high',
+        posture: 'review',
+        summary: 'This action changes a production router.',
+        factors: ['Production environment'],
+      },
+      decision: null,
+    });
+
+    expect(detail.assignedRole).toBe('approver');
   });
 });

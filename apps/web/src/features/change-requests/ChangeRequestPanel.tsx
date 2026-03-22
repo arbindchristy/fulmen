@@ -290,6 +290,12 @@ export function ChangeRequestPanel() {
                     System policy decision: <strong>{item.policyDecision.decision}</strong>{' '}
                     ({item.policyDecision.reasonCode})
                   </p>
+                  {item.approvalRequest ? (
+                    <p className="policy-line">
+                      Approval request opened: <strong>{item.approvalRequest.id}</strong>{' '}
+                      for role <strong>{item.approvalRequest.assignedRole}</strong>
+                    </p>
+                  ) : null}
                 </article>
               ))}
             </div>

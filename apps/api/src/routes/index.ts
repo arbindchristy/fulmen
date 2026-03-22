@@ -4,7 +4,6 @@ import type { AuditService } from '@fulmen/audit';
 import type { GuardAgent } from '@fulmen/guard-agent';
 import type { Orchestrator } from '@fulmen/orchestrator';
 
-import { createApprovalsRouter } from '../approvals/approvals-router.js';
 import { createAuditRouter } from '../audit/audit-router.js';
 
 interface RouteDependencies {
@@ -28,7 +27,6 @@ export function createRoutes(dependencies: RouteDependencies): Router {
     });
   });
 
-  router.use(createApprovalsRouter());
   router.use(createAuditRouter());
 
   return router;

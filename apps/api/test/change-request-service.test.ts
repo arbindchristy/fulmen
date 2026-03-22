@@ -6,6 +6,7 @@ import type { AuditService } from '@fulmen/audit';
 import type { GovernedPreviewResponse } from '@fulmen/contracts';
 import type { Orchestrator } from '@fulmen/orchestrator';
 
+import type { ApprovalService } from '../src/approvals/approval-service.js';
 import { createChangeRequestService } from '../src/change-requests/change-request-service.js';
 import type { ChangeRequestRepository } from '../src/change-requests/change-request-repository.js';
 
@@ -38,7 +39,7 @@ describe('@fulmen/api change request service', () => {
           createdAt: '2026-03-21T12:00:00.000Z',
         };
       },
-      async markPreviewReady(id, tenantId) {
+      async updateStatus(id, tenantId, status) {
         return {
           id,
           tenantId,
@@ -47,7 +48,7 @@ describe('@fulmen/api change request service', () => {
           description: 'Restart router-01 during the next maintenance window.',
           rationale: 'Recover from a failed routing daemon.',
           riskLevel: 'high',
-          status: 'preview_ready',
+          status,
           targetRef: 'router-01',
           environment: 'production',
           requestedBy: '00000000-0000-0000-0000-000000000010',
@@ -57,6 +58,30 @@ describe('@fulmen/api change request service', () => {
           },
           createdAt: '2026-03-21T12:00:00.000Z',
         };
+      },
+    };
+
+    const approvalService: Pick<
+      ApprovalService,
+      'createApprovalRequestsForActions'
+    > = {
+      async createApprovalRequestsForActions() {
+        return [
+          {
+            id: '00000000-0000-0000-0000-000000000211',
+            tenantId: '00000000-0000-0000-0000-000000000001',
+            changeRequestId: '00000000-0000-0000-0000-000000000111',
+            status: 'pending',
+            assignedRole: 'approver',
+            assignedUserId: null,
+            actionId: 'execute-change',
+            actionTitle: 'Apply the requested change',
+            actionSummary: 'Restart router-01 during the approved window.',
+            actionType: 'change.execute',
+            resourceRef: 'router-01',
+            createdAt: '2026-03-21T12:05:00.000Z',
+          },
+        ];
       },
     };
 
@@ -145,6 +170,7 @@ describe('@fulmen/api change request service', () => {
     };
 
     const service = createChangeRequestService({
+      approvalService: approvalService as ApprovalService,
       auditService: auditService as AuditService,
       changeRequestRepository: repository,
       orchestrator: orchestrator as Orchestrator,
@@ -171,8 +197,11 @@ describe('@fulmen/api change request service', () => {
     );
 
     expect(principalCalls).toEqual(['00000000-0000-0000-0000-000000000010']);
-    expect(preview.changeRequest.status).toBe('preview_ready');
+    expect(preview.changeRequest.status).toBe('in_review');
     expect(preview.governedActions[0]!.approvalRequired).toBe(true);
+    expect(preview.governedActions[0]!.approvalRequest?.id).toBe(
+      '00000000-0000-0000-0000-000000000211',
+    );
     expect(auditEvents).toEqual([
       'change_request.submitted',
       'change_request.preview_generated',

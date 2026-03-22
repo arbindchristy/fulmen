@@ -6,6 +6,10 @@ import { createGuardAgent } from '@fulmen/guard-agent';
 import { createDefaultOrchestrator } from '@fulmen/orchestrator';
 import { createPolicyDecisionService } from '@fulmen/policy-engine';
 
+import { PostgresApprovalRepository } from '../approvals/approval-repository.js';
+import { createApprovalsRouter } from '../approvals/approvals-router.js';
+import { createApprovalService } from '../approvals/approval-service.js';
+import { HttpError } from './http-error.js';
 import { createDevAuthMiddleware } from '../auth/dev-auth.js';
 import { PostgresAuditEventStore } from '../audit/postgres-audit-event-store.js';
 import { createChangeRequestsRouter } from '../change-requests/change-requests-router.js';
@@ -24,6 +28,7 @@ export function createApp(env: AppEnv) {
   const guardAgent = createGuardAgent();
   const policyDecisionService = createPolicyDecisionService();
   const changeRequestRepository = new PostgresChangeRequestRepository(pool);
+  const approvalRepository = new PostgresApprovalRepository(pool);
 
   const evidenceStore = new LocalEvidenceStore({
     rootPath: env.evidenceDir,
@@ -34,8 +39,14 @@ export function createApp(env: AppEnv) {
     guardAgent,
     policyDecisionService,
   });
+  const approvalService = createApprovalService({
+    approvalRepository,
+    auditService,
+    principalProvisioner: changeRequestRepository,
+  });
   const changeRequestService = createChangeRequestService({
     auditService,
+    approvalService,
     changeRequestRepository,
     orchestrator,
   });
@@ -64,6 +75,7 @@ export function createApp(env: AppEnv) {
     }),
   );
   app.use(createChangeRequestsRouter(changeRequestService));
+  app.use(createApprovalsRouter(approvalService));
 
   app.get('/', (_request, response) => {
     response.json({
@@ -80,6 +92,14 @@ export function createApp(env: AppEnv) {
       response.status(400).json({
         message: 'Request validation failed.',
         issues: error.issues,
+      });
+
+      return;
+    }
+
+    if (error instanceof HttpError) {
+      response.status(error.statusCode).json({
+        message: error.message,
       });
 
       return;

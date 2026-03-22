@@ -137,15 +137,17 @@ For the first implementation, the orchestrator, guard agent, policy engine, tool
 12. The tool gateway executes the action with connector-specific credentials and returns structured results.
 13. The orchestrator records outputs, updates workflow state, and produces a final outcome with linked audit evidence.
 
-The first implemented vertical slice currently stops after step 6 and returns a governed preview response that includes:
+The first implemented vertical slice currently stops after step 9 and returns a governed preview plus approval state that includes:
 
 - the persisted `change_request`
 - normalized Intake Agent output
 - the Planning Agent action plan
 - the Risk & Policy Agent assessment for each action
 - the authoritative system policy decision and approval requirement for each action
+- created approval requests for approval-required actions
+- human approval decisions recorded against those approval requests
 
-Approval creation, Execution Agent turns, and tool-gateway dispatch remain intentionally deferred until the next slice.
+Execution Agent turns and tool-gateway dispatch remain intentionally deferred until the next slice.
 
 For the first working slice, tool execution should use a stub connector that simulates a governed change action while exercising the same policy, approval, and audit path as a real connector.
 
@@ -282,7 +284,7 @@ For local development, PostgreSQL remains the only required infrastructure depen
 | `step_executions` | Workflow step state | `id`, `run_id`, `step_name`, `step_type`, `status`, `input_json`, `output_json`, `started_at`, `completed_at` |
 | `policy_bundles` | Reviewable rule sets | `id`, `tenant_id`, `name`, `version`, `bundle_json`, `checksum`, `status` |
 | `policy_decisions` | Action-level policy outcomes | `id`, `run_id`, `step_execution_id`, `action_type`, `resource_ref`, `decision`, `reason_code`, `explanation`, `policy_bundle_id`, `created_at` |
-| `approval_requests` | Human approval tasks | `id`, `tenant_id`, `change_request_id`, `run_id`, `policy_decision_id`, `status`, `assigned_role`, `assigned_user_id`, `expires_at`, `created_at` |
+| `approval_requests` | Human approval tasks | `id`, `tenant_id`, `change_request_id`, `run_id`, `policy_decision_id`, `status`, `assigned_role`, `assigned_user_id`, `action_id`, `action_title`, `action_summary`, `action_type`, `resource_ref`, `action_json`, `policy_decision_json`, `risk_assessment_json`, `expires_at`, `created_at` |
 | `approval_decisions` | Approval responses | `id`, `approval_request_id`, `decided_by`, `decision`, `justification`, `decided_at` |
 | `tool_connectors` | Allowlisted connectors | `id`, `tenant_id`, `name`, `connector_type`, `status`, `credential_ref`, `config_json`, `created_at` |
 | `tool_requests` | Proposed and executed tool operations | `id`, `run_id`, `step_execution_id`, `tool_connector_id`, `action_name`, `request_payload_json`, `status`, `executed_at`, `result_summary`, `idempotency_key` |
@@ -342,8 +344,9 @@ The audit and orchestration layers should share a small set of explicit event ty
 - `run.step_started`
 - `run.step_completed`
 - `policy.decision_recorded`
-- `approval.requested`
-- `approval.decided`
+- `approval_request.created`
+- `approval_request.approved`
+- `approval_request.rejected`
 - `tool.requested`
 - `tool.executed`
 - `tool.blocked`
