@@ -38,6 +38,15 @@ export interface ApprovalRepository {
   recordApprovalDecision(
     input: RecordApprovalDecisionInput,
   ): Promise<ApprovalRequestDetail>;
+  summarizeChangeRequestApprovals(input: {
+    changeRequestId: string;
+    tenantId: string;
+  }): Promise<{
+    total: number;
+    pending: number;
+    approved: number;
+    rejected: number;
+  }>;
 }
 
 export class PostgresApprovalRepository implements ApprovalRepository {
@@ -182,9 +191,14 @@ export class PostgresApprovalRepository implements ApprovalRepository {
           cr.id AS "requestId",
           cr.request_key AS "requestKey",
           cr.title AS "changeRequestTitle",
+          cr.control_family AS "controlFamily",
+          cr.framework,
           cr.description AS "changeRequestDescription",
           cr.rationale AS "changeRequestRationale",
+          cr.business_owner AS "businessOwner",
+          cr.source_systems_json AS "sourceSystems",
           cr.risk_level AS "changeRequestRiskLevel",
+          cr.status AS "changeRequestStatus",
           crt.target_ref AS "targetRef",
           crt.environment,
           cr.requested_by AS "requestedBy",
@@ -273,6 +287,39 @@ export class PostgresApprovalRepository implements ApprovalRepository {
 
     return updated;
   }
+
+  async summarizeChangeRequestApprovals(input: {
+    changeRequestId: string;
+    tenantId: string;
+  }): Promise<{
+    total: number;
+    pending: number;
+    approved: number;
+    rejected: number;
+  }> {
+    const result = await this.pool.query(
+      `
+        SELECT
+          COUNT(*)::int AS total,
+          COUNT(*) FILTER (WHERE status = 'pending')::int AS pending,
+          COUNT(*) FILTER (WHERE status = 'approved')::int AS approved,
+          COUNT(*) FILTER (WHERE status = 'rejected')::int AS rejected
+        FROM approval_requests
+        WHERE change_request_id = $1
+          AND tenant_id = $2
+      `,
+      [input.changeRequestId, input.tenantId],
+    );
+
+    const row = result.rows[0];
+
+    return {
+      total: row?.total ?? 0,
+      pending: row?.pending ?? 0,
+      approved: row?.approved ?? 0,
+      rejected: row?.rejected ?? 0,
+    };
+  }
 }
 
 function mapApprovalSummary(row: QueryResultRow): ApprovalRequestSummary {
@@ -308,9 +355,14 @@ function mapApprovalDetail(row: QueryResultRow): ApprovalRequestDetail {
       id: row.requestId,
       requestKey: row.requestKey,
       title: row.changeRequestTitle,
+      controlFamily: row.controlFamily,
+      framework: row.framework,
       description: row.changeRequestDescription,
       rationale: row.changeRequestRationale,
+      businessOwner: row.businessOwner,
+      sourceSystems: Array.isArray(row.sourceSystems) ? row.sourceSystems : [],
       riskLevel: row.changeRequestRiskLevel,
+      status: row.changeRequestStatus,
       targetRef: row.targetRef,
       environment: row.environment,
       requestedBy: row.requestedBy,

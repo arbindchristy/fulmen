@@ -11,4 +11,4 @@ This package contains the shared contract layer for the Fulmen MVP.
 ## Non-goals
 - Business logic
 - Transport clients
-- Generic agent abstractions outside the change-control MVP
+- Generic agent abstractions outside the current governed evidence-cycle MVP

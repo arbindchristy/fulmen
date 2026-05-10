@@ -42,7 +42,10 @@ export interface ApprovalService {
 interface ApprovalServiceDependencies {
   approvalRepository: ApprovalRepository;
   auditService: AuditService;
-  principalProvisioner: Pick<ChangeRequestRepository, 'ensurePrincipal'>;
+  changeRequestRepository: Pick<
+    ChangeRequestRepository,
+    'ensurePrincipal' | 'updateStatus'
+  >;
 }
 
 export function createApprovalService(
@@ -94,14 +97,14 @@ export function createApprovalService(
     },
 
     async listPendingApprovals(context) {
-      await dependencies.principalProvisioner.ensurePrincipal(context);
+      await dependencies.changeRequestRepository.ensurePrincipal(context);
       assertCanViewApprovals(context);
 
       return dependencies.approvalRepository.listPendingApprovals(context.tenantId);
     },
 
     async getApprovalDetail(approvalRequestId, context) {
-      await dependencies.principalProvisioner.ensurePrincipal(context);
+      await dependencies.changeRequestRepository.ensurePrincipal(context);
       assertCanViewApprovals(context);
 
       const approval = await dependencies.approvalRepository.getApprovalDetail(
@@ -148,7 +151,7 @@ async function decideApproval(
   decision: ApprovalDecisionValue,
   dependencies: ApprovalServiceDependencies,
 ): Promise<ApprovalRequestDetail> {
-  await dependencies.principalProvisioner.ensurePrincipal(context);
+  await dependencies.changeRequestRepository.ensurePrincipal(context);
   assertCanDecideApproval(context);
 
   const current = await dependencies.approvalRepository.getApprovalDetail(
@@ -177,13 +180,46 @@ async function decideApproval(
     );
   }
 
-  const updated = await dependencies.approvalRepository.recordApprovalDecision({
+  await dependencies.approvalRepository.recordApprovalDecision({
     approvalRequestId,
     tenantId: context.tenantId,
     actorId: context.userId,
     decision,
     justification: input.justification,
   });
+
+  const approvalSummary =
+    await dependencies.approvalRepository.summarizeChangeRequestApprovals({
+      changeRequestId: current.changeRequest.id,
+      tenantId: context.tenantId,
+    });
+
+  const nextChangeRequestStatus =
+    approvalSummary.rejected > 0
+      ? 'rejected'
+      : approvalSummary.pending > 0
+        ? 'in_review'
+        : approvalSummary.total > 0
+          ? 'approved'
+          : current.changeRequest.status;
+
+  await dependencies.changeRequestRepository.updateStatus(
+    current.changeRequest.id,
+    context.tenantId,
+    nextChangeRequestStatus,
+  );
+
+  const updated = await dependencies.approvalRepository.getApprovalDetail(
+    approvalRequestId,
+    context.tenantId,
+  );
+
+  if (!updated) {
+    throw new HttpError(
+      `Approval request ${approvalRequestId} could not be reloaded after decision.`,
+      500,
+    );
+  }
 
   await dependencies.auditService.record({
     tenantId: context.tenantId,

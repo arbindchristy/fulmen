@@ -34,4 +34,44 @@ export class PostgresAuditEventStore implements AuditEventStore {
       ],
     );
   }
+
+  async listRecent(input: {
+    tenantId: string;
+    limit?: number;
+    entityId?: string;
+  }): Promise<AuditEvent[]> {
+    const limit = Math.min(Math.max(input.limit ?? 40, 1), 100);
+    const result = await this.pool.query(
+      `
+        SELECT
+          id,
+          tenant_id AS "tenantId",
+          event_type AS "eventType",
+          entity_type AS "entityType",
+          entity_id AS "entityId",
+          actor_type AS "actorType",
+          actor_id AS "actorId",
+          occurred_at AS "occurredAt",
+          payload_json AS payload
+        FROM audit_events
+        WHERE tenant_id = $1
+          AND ($2::text IS NULL OR entity_id = $2)
+        ORDER BY occurred_at DESC
+        LIMIT $3
+      `,
+      [input.tenantId, input.entityId ?? null, limit],
+    );
+
+    return result.rows.map((row) => ({
+      id: row.id,
+      tenantId: row.tenantId,
+      eventType: row.eventType,
+      entityType: row.entityType,
+      entityId: row.entityId,
+      actorType: row.actorType,
+      actorId: row.actorId,
+      occurredAt: new Date(row.occurredAt).toISOString(),
+      payload: row.payload ?? {},
+    }));
+  }
 }

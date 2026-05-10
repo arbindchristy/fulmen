@@ -14,6 +14,11 @@ export interface RecordAuditEventInput {
 
 export interface AuditEventStore {
   append(event: AuditEvent): Promise<void>;
+  listRecent(input: {
+    tenantId: string;
+    limit?: number;
+    entityId?: string;
+  }): Promise<AuditEvent[]>;
 }
 
 export class AuditService {
@@ -35,5 +40,13 @@ export class AuditService {
     await this.store?.append(event);
 
     return event;
+  }
+
+  async listRecent(input: {
+    tenantId: string;
+    limit?: number;
+    entityId?: string;
+  }): Promise<AuditEvent[]> {
+    return this.store?.listRecent(input) ?? [];
   }
 }

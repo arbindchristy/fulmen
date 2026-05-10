@@ -30,7 +30,7 @@ export function evaluateChangeControlAction(
       resourceRef: action.resourceRef,
       decision: 'deny',
       reasonCode: 'policy.no_match',
-      explanation: 'No matching policy rule exists for the requested action.',
+      explanation: 'No matching policy rule exists for the proposed evidence action.',
     };
   }
 

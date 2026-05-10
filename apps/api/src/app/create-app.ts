@@ -42,7 +42,7 @@ export function createApp(env: AppEnv) {
   const approvalService = createApprovalService({
     approvalRepository,
     auditService,
-    principalProvisioner: changeRequestRepository,
+    changeRequestRepository,
   });
   const changeRequestService = createChangeRequestService({
     auditService,
@@ -80,7 +80,7 @@ export function createApp(env: AppEnv) {
   app.get('/', (_request, response) => {
     response.json({
       name: 'fulmen-api',
-      status: 'bootstrapped',
+      status: 'controlproof-alpha',
       evidenceRoot: evidenceStore.getRootPath(),
     });
   });

@@ -10,9 +10,10 @@ export const runStatusSchema = z.enum([
 ]);
 
 export const plannedActionKindSchema = z.enum([
-  'validation',
-  'execution',
-  'verification',
+  'collection',
+  'reconciliation',
+  'narrative',
+  'adjudication',
 ]);
 
 export const plannedActionSchema = z.object({

@@ -1,5 +1,7 @@
 import type {
   CreateChangeRequestInput,
+  EvidenceArtifact,
+  EvidenceGap,
   NormalizedChangeRequest,
   PlannedAction,
   RiskPolicyAssessment,
@@ -30,12 +32,16 @@ export function createDeterministicIntakeAgent(
     normalize(input) {
       return guardAgent.validateNormalizedRequest({
         title: input.title.trim(),
-        changeCategory: inferChangeCategory(input),
+        controlFamily: input.controlFamily.trim(),
+        framework: input.framework.trim(),
         targetRef: input.targetRef.trim(),
-        environment: input.environment.trim().toLowerCase(),
-        requestedOutcome: summarizeOutcome(input.description),
+        environment: input.environment.trim(),
+        businessOwner: input.businessOwner.trim(),
+        sourceSystems: input.sourceSystems.map((system) => system.trim()),
+        requestedOutcome: summarizeOutcome(input),
         rationale: input.rationale.trim(),
         operatorIntentSummary: summarizeIntent(input),
+        expectedArtifacts: buildExpectedArtifacts(input),
         assumptions: buildAssumptions(input),
         missingInformation: buildMissingInformation(input),
         requestedWindow: input.requestedWindow,
@@ -51,39 +57,50 @@ export function createDeterministicPlanningAgent(
     plan(normalizedRequest) {
       const actions: PlannedAction[] = [
         {
-          id: 'validate-target',
-          kind: 'validation',
-          title: 'Validate target and maintenance window',
-          actionType: 'change.validate',
+          id: 'collect-evidence',
+          kind: 'collection',
+          title: 'Collect governed evidence from declared systems',
+          actionType: 'evidence.collect',
           resourceRef: normalizedRequest.targetRef,
-          summary: `Confirm ${normalizedRequest.targetRef} is reachable and the requested window is safe for ${normalizedRequest.environment}.`,
+          summary: `Collect time-bounded evidence for ${normalizedRequest.targetRef} from ${normalizedRequest.sourceSystems.join(', ')}.`,
           rationale:
-            'Validation stays inside the governed preview path and checks preconditions before any execution would be considered.',
+            'Collection stays inside the system-controlled path and preserves provenance for each artifact.',
         },
         {
-          id: 'execute-change',
-          kind: 'execution',
-          title: 'Apply the requested change',
-          actionType: 'change.execute',
+          id: 'reconcile-coverage',
+          kind: 'reconciliation',
+          title: 'Reconcile evidence against the control objective',
+          actionType: 'evidence.reconcile',
           resourceRef: normalizedRequest.targetRef,
-          summary: `Apply the requested ${normalizedRequest.changeCategory} change to ${normalizedRequest.targetRef}.`,
-          rationale: normalizedRequest.operatorIntentSummary,
+          summary: `Compare submitted artifacts to the ${normalizedRequest.framework} control objective and flag unsupported assertions.`,
+          rationale:
+            'Reconciliation is where the product determines whether the evidence chain is coherent enough for review.',
         },
         {
-          id: 'verify-outcome',
-          kind: 'verification',
-          title: 'Verify service health after change',
-          actionType: 'change.validate',
+          id: 'draft-narrative',
+          kind: 'narrative',
+          title: 'Draft the control narrative and exception summary',
+          actionType: 'evidence.compose',
           resourceRef: normalizedRequest.targetRef,
-          summary: `Verify the target remains healthy after the requested change on ${normalizedRequest.targetRef}.`,
+          summary: `Prepare the audit narrative for ${normalizedRequest.targetRef} with linked rationale for each artifact and gap.`,
           rationale:
-            'A post-change verification step is required so the governed preview remains explicit about rollback and validation expectations.',
+            'Narrative drafting turns fragmented evidence into a reviewable pack without granting final acceptance authority to the model.',
+        },
+        {
+          id: 'adjudicate-gaps',
+          kind: 'adjudication',
+          title: 'Adjudicate evidence gaps and compensating explanations',
+          actionType: 'evidence.exception_review',
+          resourceRef: normalizedRequest.targetRef,
+          summary: `Route unresolved gaps and compensating explanations for ${normalizedRequest.targetRef} through governed review.`,
+          rationale:
+            'Gap acceptance is the trust boundary where human review and policy controls must remain authoritative.',
         },
       ];
 
       return guardAgent.validateStructuredPlan({
         planId: `plan-${normalizedRequest.targetRef.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
-        summary: `Validate the target, apply the requested change, and verify the outcome for ${normalizedRequest.targetRef}.`,
+        summary: `Collect, reconcile, narrate, and adjudicate evidence for ${normalizedRequest.targetRef}.`,
         actions,
       });
     },
@@ -95,29 +112,36 @@ export function createDeterministicRiskPolicyAgent(
 ): RiskPolicyAgent {
   return {
     assess({ action, normalizedRequest, requestedRiskLevel }) {
-      const productionLike = normalizedRequest.environment === 'production';
-      const executionStep = action.kind === 'execution';
+      const highTrustCycle = requestedRiskLevel === 'high';
+      const adjudicationStep = action.kind === 'adjudication';
       const posture =
-        requestedRiskLevel === 'high' || (productionLike && executionStep)
+        adjudicationStep && highTrustCycle
           ? 'review'
-          : requestedRiskLevel === 'medium'
+          : action.kind === 'reconciliation' && normalizedRequest.missingInformation.length > 0
+            ? 'review'
+            : requestedRiskLevel === 'medium'
             ? 'inform'
             : 'inform';
 
       const factors = [
-        `Declared operator risk: ${requestedRiskLevel}.`,
-        `Environment: ${normalizedRequest.environment}.`,
+        `Evidence sensitivity: ${requestedRiskLevel}.`,
+        `Operating area: ${normalizedRequest.environment}.`,
+        `Declared systems: ${normalizedRequest.sourceSystems.join(', ')}.`,
       ];
 
-      if (executionStep) {
-        factors.push('This step changes the target state.');
+      if (adjudicationStep) {
+        factors.push('This step can accept evidence gaps or compensating explanations.');
+      } else if (action.kind === 'reconciliation') {
+        factors.push('This step decides whether the current artifacts support the control objective.');
+      } else if (action.kind === 'narrative') {
+        factors.push('This step drafts reviewer-facing evidence explanations.');
       } else {
-        factors.push('This step is scoped to validation or verification.');
+        factors.push('This step collects or normalizes evidence without final acceptance.');
       }
 
       if (normalizedRequest.missingInformation.length > 0) {
         factors.push(
-          `Missing information noted by Intake Agent: ${normalizedRequest.missingInformation.join(', ')}.`,
+          `Open intake gaps: ${normalizedRequest.missingInformation.join(', ')}.`,
         );
       }
 
@@ -137,60 +161,30 @@ export function createDeterministicRiskPolicyAgent(
   };
 }
 
-function inferChangeCategory(
-  input: CreateChangeRequestInput,
-): NormalizedChangeRequest['changeCategory'] {
-  const haystack = `${input.title} ${input.description} ${input.targetRef}`.toLowerCase();
-
-  if (haystack.includes('firewall') || haystack.includes('router') || haystack.includes('switch')) {
-    return 'network';
-  }
-
-  if (haystack.includes('patch') || haystack.includes('restart') || haystack.includes('maintenance')) {
-    return 'maintenance';
-  }
-
-  if (haystack.includes('rollback')) {
-    return 'rollback';
-  }
-
-  if (haystack.includes('secret') || haystack.includes('certificate') || haystack.includes('credential')) {
-    return 'security';
-  }
-
-  if (haystack.includes('server') || haystack.includes('cluster') || haystack.includes('node')) {
-    return 'infrastructure';
-  }
-
-  if (haystack.includes('config') || haystack.includes('setting')) {
-    return 'configuration';
-  }
-
-  return 'other';
-}
-
-function summarizeOutcome(description: string): string {
-  const trimmed = description.trim();
+function summarizeOutcome(input: CreateChangeRequestInput): string {
+  const trimmed = input.description.trim();
   const firstSentence = trimmed.split(/[.!?]/, 1)[0] ?? '';
+  const base = firstSentence.length > 0 ? firstSentence : trimmed;
 
-  return firstSentence.length > 0 ? firstSentence : trimmed;
+  return `${base} for ${input.framework} control ${input.targetRef}.`;
 }
 
 function summarizeIntent(input: CreateChangeRequestInput): string {
   const windowSummary = input.requestedWindow?.startAt
-    ? ` during the requested window starting ${input.requestedWindow.startAt}`
+    ? ` for the evidence window starting ${input.requestedWindow.startAt}`
     : '';
 
-  return `Apply the requested change to ${input.targetRef} in ${input.environment}${windowSummary}.`;
+  return `Prepare a governed evidence pack for ${input.controlFamily} control ${input.targetRef} in ${input.environment}${windowSummary}.`;
 }
 
 function buildAssumptions(input: CreateChangeRequestInput): string[] {
   const assumptions = [
-    `The request applies to ${input.targetRef} in ${input.environment}.`,
+    `The cycle applies to control ${input.targetRef} in ${input.environment}.`,
+    `Business owner ${input.businessOwner} can validate unresolved evidence questions.`,
   ];
 
   if (input.requestedWindow?.startAt && input.requestedWindow?.endAt) {
-    assumptions.push('A bounded maintenance window has been proposed by the operator.');
+    assumptions.push('A bounded evidence collection period has been declared.');
   }
 
   return assumptions;
@@ -199,15 +193,110 @@ function buildAssumptions(input: CreateChangeRequestInput): string[] {
 function buildMissingInformation(input: CreateChangeRequestInput): string[] {
   const missing: string[] = [];
 
-  if (!input.description.toLowerCase().includes('rollback')) {
-    missing.push('Explicit rollback details were not supplied in the request description.');
+  if (
+    !input.sourceSystems.some((system) =>
+      /(jira|servicenow|ticket|approval)/i.test(system),
+    )
+  ) {
+    missing.push('No approval-system or ticketing source was declared for corroborating workflow evidence.');
   }
 
   if (!input.requestedWindow?.startAt || !input.requestedWindow?.endAt) {
-    missing.push('Requested maintenance window is incomplete.');
+    missing.push('Evidence collection period is incomplete.');
   }
 
   return missing;
+}
+
+function buildExpectedArtifacts(input: CreateChangeRequestInput): string[] {
+  const artifacts = input.sourceSystems.map((system) =>
+    `${system} evidence extract for ${input.targetRef}`,
+  );
+
+  artifacts.push(`Business owner attestation from ${input.businessOwner}`);
+  artifacts.push(`${input.framework} control narrative draft`);
+
+  return artifacts;
+}
+
+export function buildEvidenceArtifacts(
+  normalizedRequest: NormalizedChangeRequest,
+): EvidenceArtifact[] {
+  const artifacts = normalizedRequest.sourceSystems.map((system, index) => {
+    const recognizedSystem = /(okta|entra|azure ad|aws|gcp|jira|servicenow)/i.test(system);
+    const ticketingSystem = /(jira|servicenow|ticket|approval)/i.test(system);
+
+    return {
+      id: `artifact-${index + 1}`,
+      system,
+      artifactType: ticketingSystem
+        ? 'workflow-log'
+        : recognizedSystem
+          ? 'system-export'
+          : 'manual-upload',
+      title: `${system} control evidence`,
+      description: ticketingSystem
+        ? `Workflow and approval evidence from ${system}.`
+        : recognizedSystem
+          ? `System-generated evidence extract from ${system}.`
+          : `Unstructured or analyst-supplied evidence from ${system}.`,
+      status: recognizedSystem ? 'ready' : 'partial',
+      freshness: recognizedSystem ? 'current' : 'aging',
+      provenance: recognizedSystem
+        ? `Connector snapshot captured from ${system}.`
+        : `Analyst-declared source ${system} still needs provenance confirmation.`,
+    } satisfies EvidenceArtifact;
+  });
+
+  return [
+    ...artifacts,
+    {
+      id: 'artifact-owner-attestation',
+      system: normalizedRequest.businessOwner,
+      artifactType: 'owner-attestation',
+      title: 'Control owner attestation',
+      description: `Manual attestation expected from ${normalizedRequest.businessOwner}.`,
+      status: 'partial',
+      freshness: 'current',
+      provenance: 'Pending reviewer acceptance of owner-supplied narrative.',
+    },
+  ];
+}
+
+export function buildEvidenceGaps(input: {
+  artifacts: EvidenceArtifact[];
+  normalizedRequest: NormalizedChangeRequest;
+  requestedRiskLevel: CreateChangeRequestInput['riskLevel'];
+}): EvidenceGap[] {
+  const gaps: EvidenceGap[] = [];
+
+  for (const artifact of input.artifacts) {
+    if (artifact.status === 'ready') {
+      continue;
+    }
+
+    gaps.push({
+      id: `gap-${artifact.id}`,
+      severity: artifact.artifactType === 'owner-attestation' ? 'medium' : 'high',
+      title: `${artifact.title} is not audit-ready`,
+      summary: `${artifact.title} still needs stronger provenance or completeness before it can support the control narrative.`,
+      remediation: `Confirm provenance and provide a reviewer-acceptable export or attachment for ${artifact.system}.`,
+      approvalRequired: input.requestedRiskLevel === 'high',
+    });
+  }
+
+  for (const missing of input.normalizedRequest.missingInformation) {
+    gaps.push({
+      id: `gap-intake-${gaps.length + 1}`,
+      severity: 'medium',
+      title: 'Intake coverage gap',
+      summary: missing,
+      remediation: 'Collect the missing information before freezing the evidence pack.',
+      approvalRequired: false,
+    });
+  }
+
+  return gaps;
 }
 
 function buildAssessmentSummary(input: {
@@ -216,15 +305,15 @@ function buildAssessmentSummary(input: {
   requestedRiskLevel: CreateChangeRequestInput['riskLevel'];
   posture: RiskPolicyAssessment['posture'];
 }): string {
-  const base = `${input.action.title} targets ${input.normalizedRequest.targetRef} in ${input.normalizedRequest.environment}.`;
+  const base = `${input.action.title} applies to control ${input.normalizedRequest.targetRef} in ${input.normalizedRequest.environment}.`;
 
   if (input.posture === 'review') {
-    return `${base} Review is recommended because the request is ${input.requestedRiskLevel} risk or changes a live environment.`;
+    return `${base} Review is recommended because the cycle is ${input.requestedRiskLevel} sensitivity or still contains unresolved evidence gaps.`;
   }
 
   if (input.requestedRiskLevel === 'medium') {
-    return `${base} Medium-risk work can proceed only after the system policy posture is attached.`;
+    return `${base} Medium-sensitivity work can proceed only after the system policy posture is attached.`;
   }
 
-  return `${base} This step remains low-complexity, but the system policy engine still decides whether execution would be allowed later.`;
+  return `${base} This step is bounded, but the system policy engine still decides whether downstream exception handling would be allowed later.`;
 }

@@ -17,7 +17,7 @@ export function createRoutes(dependencies: RouteDependencies): Router {
 
   router.get('/api/v1/system/summary', (_request, response) => {
     response.json({
-      mode: 'governed-preview',
+      mode: 'controlproof-alpha',
       services: {
         audit: typeof dependencies.auditService.record === 'function',
         guardAgent:
@@ -27,7 +27,7 @@ export function createRoutes(dependencies: RouteDependencies): Router {
     });
   });
 
-  router.use(createAuditRouter());
+  router.use(createAuditRouter(dependencies.auditService));
 
   return router;
 }

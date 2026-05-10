@@ -4,6 +4,8 @@ export const auditEventTypeSchema = z.enum([
   'change_request.created',
   'change_request.submitted',
   'change_request.preview_generated',
+  'evidence_cycle.submitted',
+  'evidence_cycle.preview_generated',
   'approval_request.created',
   'approval_request.approved',
   'approval_request.rejected',

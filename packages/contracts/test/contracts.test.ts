@@ -10,21 +10,25 @@ import {
 } from '../src/index.js';
 
 describe('@fulmen/contracts', () => {
-  it('parses a minimal change request input', () => {
+  it('parses a minimal evidence cycle input', () => {
     const payload = createChangeRequestInputSchema.parse({
-      title: 'Restart edge router',
-      description: 'Controlled restart during the approved maintenance window.',
-      rationale: 'Resolve stuck routing processes before business hours.',
+      title: 'Quarterly access review evidence pack',
+      controlFamily: 'Access Governance',
+      framework: 'SOC 2 CC6.2',
+      description: 'Collect evidence for privileged access review completion.',
+      rationale: 'Produce an audit-ready evidence pack.',
+      businessOwner: 'Head of Identity Operations',
+      sourceSystems: ['Okta', 'Jira'],
       riskLevel: 'medium',
-      targetRef: 'router-01',
-      environment: 'production',
+      targetRef: 'UGR-ACCESS-01',
+      environment: 'Global identity operations',
       requestedWindow: {
-        startAt: '2026-03-22T01:00:00.000Z',
-        endAt: '2026-03-22T02:00:00.000Z',
+        startAt: '2026-05-01T00:00:00.000Z',
+        endAt: '2026-05-31T23:59:00.000Z',
       },
     });
 
-    expect(payload.title).toBe('Restart edge router');
+    expect(payload.framework).toBe('SOC 2 CC6.2');
   });
 
   it('requires at least one planned action', () => {
@@ -39,23 +43,23 @@ describe('@fulmen/contracts', () => {
 
   it('accepts a review-required policy decision', () => {
     const decision = policyDecisionSchema.parse({
-      actionType: 'change.execute',
-      resourceRef: 'router-01',
+      actionType: 'evidence.exception_review',
+      resourceRef: 'UGR-ACCESS-01',
       decision: 'require_approval',
-      reasonCode: 'risk.high',
-      explanation: 'High-risk change requires approval.',
+      reasonCode: 'policy.require-approval-high-sensitivity-exception',
+      explanation: 'High-sensitivity evidence exception requires approval.',
     });
 
     expect(decision.decision).toBe('require_approval');
   });
 
-  it('validates a governed preview response', () => {
+  it('validates a governed evidence preview response', () => {
     const assessment = riskPolicyAssessmentSchema.parse({
-      actionId: 'execute-change',
+      actionId: 'adjudicate-gaps',
       riskLevel: 'high',
       posture: 'review',
-      summary: 'Production execution needs review because it changes a live router.',
-      factors: ['Production environment', 'Operator declared high risk'],
+      summary: 'Exception review needs approval because the pack remains high sensitivity.',
+      factors: ['Evidence sensitivity: high.', 'Open intake gaps remain.'],
     });
 
     const preview = governedPreviewResponseSchema.parse({
@@ -63,70 +67,86 @@ describe('@fulmen/contracts', () => {
         id: '00000000-0000-0000-0000-000000000111',
         tenantId: '00000000-0000-0000-0000-000000000001',
         requestKey: 'cr-001',
-        title: 'Restart edge router',
-        description: 'Controlled restart during the approved maintenance window.',
-        rationale: 'Resolve stuck routing processes before business hours.',
+        title: 'Quarterly access review evidence pack',
+        controlFamily: 'Access Governance',
+        framework: 'SOC 2 CC6.2',
+        description: 'Collect evidence for privileged access review completion.',
+        rationale: 'Produce an audit-ready evidence pack.',
+        businessOwner: 'Head of Identity Operations',
+        sourceSystems: ['Okta', 'Jira'],
         riskLevel: 'high',
         status: 'preview_ready',
-        targetRef: 'router-01',
-        environment: 'production',
+        targetRef: 'UGR-ACCESS-01',
+        environment: 'Global identity operations',
         requestedBy: '00000000-0000-0000-0000-000000000010',
         requestedWindow: {
-          startAt: '2026-03-22T01:00:00.000Z',
-          endAt: '2026-03-22T02:00:00.000Z',
+          startAt: '2026-05-01T00:00:00.000Z',
+          endAt: '2026-05-31T23:59:00.000Z',
         },
-        createdAt: '2026-03-21T12:00:00.000Z',
+        createdAt: '2026-05-10T12:00:00.000Z',
       },
       normalizedRequest: {
-        title: 'Restart edge router',
-        changeCategory: 'network',
-        targetRef: 'router-01',
-        environment: 'production',
-        requestedOutcome: 'Restart the router cleanly.',
-        rationale: 'Resolve stuck routing processes before business hours.',
-        operatorIntentSummary: 'Restart router-01 during the approved window.',
-        assumptions: ['A maintenance window exists.'],
+        title: 'Quarterly access review evidence pack',
+        controlFamily: 'Access Governance',
+        framework: 'SOC 2 CC6.2',
+        targetRef: 'UGR-ACCESS-01',
+        environment: 'Global identity operations',
+        businessOwner: 'Head of Identity Operations',
+        sourceSystems: ['Okta', 'Jira'],
+        requestedOutcome:
+          'Collect evidence for privileged access review completion for SOC 2 CC6.2 control UGR-ACCESS-01.',
+        rationale: 'Produce an audit-ready evidence pack.',
+        operatorIntentSummary:
+          'Prepare a governed evidence pack for Access Governance control UGR-ACCESS-01 in Global identity operations for the evidence window starting 2026-05-01T00:00:00.000Z.',
+        expectedArtifacts: [
+          'Okta evidence extract for UGR-ACCESS-01',
+          'Jira evidence extract for UGR-ACCESS-01',
+        ],
+        assumptions: ['A bounded evidence collection period has been declared.'],
         missingInformation: [],
         requestedWindow: {
-          startAt: '2026-03-22T01:00:00.000Z',
-          endAt: '2026-03-22T02:00:00.000Z',
+          startAt: '2026-05-01T00:00:00.000Z',
+          endAt: '2026-05-31T23:59:00.000Z',
         },
       },
       actionPlan: {
         planId: 'plan-1',
-        summary: 'Validate, execute, and verify the requested change.',
+        summary: 'Collect, reconcile, narrate, and adjudicate evidence for UGR-ACCESS-01.',
         actions: [
           {
-            id: 'execute-change',
-            kind: 'execution',
-            title: 'Apply change',
-            actionType: 'change.execute',
-            resourceRef: 'router-01',
-            summary: 'Restart the router within the approved window.',
-            rationale: 'The operator requested a production router restart.',
+            id: 'adjudicate-gaps',
+            kind: 'adjudication',
+            title: 'Adjudicate evidence gaps and compensating explanations',
+            actionType: 'evidence.exception_review',
+            resourceRef: 'UGR-ACCESS-01',
+            summary:
+              'Route unresolved gaps and compensating explanations for UGR-ACCESS-01 through governed review.',
+            rationale: 'Gap acceptance is the trust boundary.',
           },
         ],
       },
       governedActions: [
         {
           action: {
-            id: 'execute-change',
-            kind: 'execution',
-            title: 'Apply change',
-            actionType: 'change.execute',
-            resourceRef: 'router-01',
-            summary: 'Restart the router within the approved window.',
-            rationale: 'The operator requested a production router restart.',
+            id: 'adjudicate-gaps',
+            kind: 'adjudication',
+            title: 'Adjudicate evidence gaps and compensating explanations',
+            actionType: 'evidence.exception_review',
+            resourceRef: 'UGR-ACCESS-01',
+            summary:
+              'Route unresolved gaps and compensating explanations for UGR-ACCESS-01 through governed review.',
+            rationale: 'Gap acceptance is the trust boundary.',
           },
           riskAssessment: assessment,
           policyDecision: {
-            actionType: 'change.execute',
-            resourceRef: 'router-01',
+            actionType: 'evidence.exception_review',
+            resourceRef: 'UGR-ACCESS-01',
             decision: 'require_approval',
-            reasonCode: 'policy.require-approval-high-risk-execution',
-            explanation: 'High-risk change requires approval.',
+            reasonCode: 'policy.require-approval-high-sensitivity-exception',
+            explanation: 'High-sensitivity evidence exception requires approval.',
           },
           approvalRequired: true,
+          approvalDecision: null,
           approvalRequest: {
             id: '00000000-0000-0000-0000-000000000211',
             tenantId: '00000000-0000-0000-0000-000000000001',
@@ -134,20 +154,49 @@ describe('@fulmen/contracts', () => {
             status: 'pending',
             assignedRole: 'approver',
             assignedUserId: null,
-            actionId: 'execute-change',
-            actionTitle: 'Apply change',
-            actionSummary: 'Restart the router within the approved window.',
-            actionType: 'change.execute',
-            resourceRef: 'router-01',
-            createdAt: '2026-03-21T12:05:00.000Z',
+            actionId: 'adjudicate-gaps',
+            actionTitle: 'Adjudicate evidence gaps and compensating explanations',
+            actionSummary:
+              'Route unresolved gaps and compensating explanations for UGR-ACCESS-01 through governed review.',
+            actionType: 'evidence.exception_review',
+            resourceRef: 'UGR-ACCESS-01',
+            createdAt: '2026-05-10T12:05:00.000Z',
           },
         },
       ],
+      evidencePack: {
+        coverageSummary: '2 of 3 artifacts are audit-ready for SOC 2 CC6.2 control UGR-ACCESS-01. 1 gap remains open for reviewer adjudication.',
+        narrativeDraft:
+          'SOC 2 CC6.2 control UGR-ACCESS-01 for Access Governance is supported by evidence from Okta, Jira.',
+        artifacts: [
+          {
+            id: 'artifact-1',
+            system: 'Okta',
+            artifactType: 'system-export',
+            title: 'Okta control evidence',
+            description: 'System-generated evidence extract from Okta.',
+            status: 'ready',
+            freshness: 'current',
+            provenance: 'Connector snapshot captured from Okta.',
+          },
+        ],
+        gaps: [
+          {
+            id: 'gap-1',
+            severity: 'high',
+            title: 'Owner attestation is not audit-ready',
+            summary: 'Owner attestation still needs stronger provenance.',
+            remediation: 'Confirm provenance and provide reviewer-acceptable attachment.',
+            approvalRequired: true,
+          },
+        ],
+        followUps: ['Confirm provenance and provide reviewer-acceptable attachment.'],
+      },
       previewSummary:
-        'Preview prepared with one action that requires approval before execution.',
+        'Evidence pack prepared with 1 high-severity gap and 1 governed review action requiring approval.',
     });
 
-    expect(preview.governedActions[0]!.approvalRequired).toBe(true);
+    expect(preview.evidencePack.gaps[0]!.approvalRequired).toBe(true);
   });
 
   it('validates an approval request detail payload', () => {
@@ -158,50 +207,55 @@ describe('@fulmen/contracts', () => {
       status: 'pending',
       assignedRole: 'approver',
       assignedUserId: null,
-      actionId: 'execute-change',
-      actionTitle: 'Apply the requested change',
-      actionSummary: 'Restart router-01 during the approved window.',
-      actionType: 'change.execute',
-      resourceRef: 'router-01',
-      createdAt: '2026-03-21T12:05:00.000Z',
+      actionId: 'adjudicate-gaps',
+      actionTitle: 'Adjudicate evidence gaps and compensating explanations',
+      actionSummary: 'Route unresolved gaps through governed review.',
+      actionType: 'evidence.exception_review',
+      resourceRef: 'UGR-ACCESS-01',
+      createdAt: '2026-05-10T12:05:00.000Z',
       changeRequest: {
         id: '00000000-0000-0000-0000-000000000111',
         requestKey: 'cr-001',
-        title: 'Restart edge router',
-        description: 'Restart router-01 during the approved window.',
-        rationale: 'Recover from a failed daemon.',
+        title: 'Quarterly access review evidence pack',
+        controlFamily: 'Access Governance',
+        framework: 'SOC 2 CC6.2',
+        description: 'Collect evidence for privileged access review completion.',
+        rationale: 'Produce an audit-ready evidence pack.',
+        businessOwner: 'Head of Identity Operations',
+        sourceSystems: ['Okta', 'Jira'],
         riskLevel: 'high',
-        targetRef: 'router-01',
-        environment: 'production',
+        status: 'in_review',
+        targetRef: 'UGR-ACCESS-01',
+        environment: 'Global identity operations',
         requestedBy: '00000000-0000-0000-0000-000000000010',
-        createdAt: '2026-03-21T12:00:00.000Z',
+        createdAt: '2026-05-10T12:00:00.000Z',
       },
       action: {
-        id: 'execute-change',
-        kind: 'execution',
-        title: 'Apply the requested change',
-        actionType: 'change.execute',
-        resourceRef: 'router-01',
-        summary: 'Restart router-01 during the approved window.',
-        rationale: 'Production restart requested by the operator.',
+        id: 'adjudicate-gaps',
+        kind: 'adjudication',
+        title: 'Adjudicate evidence gaps and compensating explanations',
+        actionType: 'evidence.exception_review',
+        resourceRef: 'UGR-ACCESS-01',
+        summary: 'Route unresolved gaps through governed review.',
+        rationale: 'Gap acceptance is the trust boundary.',
       },
       policyDecision: {
-        actionType: 'change.execute',
-        resourceRef: 'router-01',
+        actionType: 'evidence.exception_review',
+        resourceRef: 'UGR-ACCESS-01',
         decision: 'require_approval',
-        reasonCode: 'policy.require-approval-high-risk-execution',
-        explanation: 'High-risk change requires approval.',
+        reasonCode: 'policy.require-approval-high-sensitivity-exception',
+        explanation: 'High-sensitivity evidence exception requires approval.',
       },
       riskAssessment: {
-        actionId: 'execute-change',
+        actionId: 'adjudicate-gaps',
         riskLevel: 'high',
         posture: 'review',
-        summary: 'This action changes a production router.',
-        factors: ['Production environment'],
+        summary: 'This action accepts unresolved evidence gaps.',
+        factors: ['Evidence sensitivity: high.'],
       },
       decision: null,
     });
 
-    expect(detail.assignedRole).toBe('approver');
+    expect(detail.changeRequest.framework).toBe('SOC 2 CC6.2');
   });
 });

@@ -25,7 +25,7 @@ export const policyRuleSchema = z.object({
 export const policyBundleSchema = z.object({
   name: z.string(),
   version: z.string(),
-  workflow: z.literal('change-control'),
+  workflow: z.enum(['change-control', 'control-evidence']),
   rules: z.array(policyRuleSchema).min(1),
 });
 

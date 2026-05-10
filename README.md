@@ -1,51 +1,38 @@
 # Fulmen
 
-Fulmen is a security-first, governed multi-agent platform for enterprise automation in regulated environments. The current repository scaffold is intentionally narrow: a MacBook-buildable modular monolith for a governed change-control MVP in IT operations.
+Fulmen is a security-first, governed multi-agent platform for enterprise automation in regulated environments. The current product slice is `ControlProof`: an AI-native control evidence workflow that assembles audit-ready proof, detects evidence gaps, and routes high-sensitivity exception decisions through system-enforced approval.
 
 ## Core Principle
 Agents think. Systems enforce. Humans approve.
 
-In the Fulmen MVP, real AI agents perform bounded reasoning inside one tightly controlled workflow:
+## Current Product
+`ControlProof` is a governed evidence-cycle alpha for control owners, audit teams, and approvers.
 
-- Intake Agent
-- Planning Agent
-- Risk & Policy Agent
-- Execution Agent
+The implemented vertical slice supports:
 
-Those agents do not control policy enforcement, approval gates, tool authorization, audit logging, or persistence. Those responsibilities remain in system-controlled components.
+- evidence-cycle intake for one control and one evidence period
+- bounded agent reasoning for evidence normalization, planning, risk summarization, and gap adjudication
+- deterministic evidence-pack generation with artifacts, follow-ups, and draft narrative
+- system-authoritative policy evaluation for governed evidence actions
+- approval workflows for high-sensitivity exception review
+- append-only audit event capture and read APIs
 
-## MVP Shape
-- `apps/api` is the single HTTP ingress, orchestration entrypoint, and system enforcement boundary.
-- `apps/web` is the minimal operator and approver interface.
-- `services/*` are in-process modules behind the API and host the controlled workflow logic.
-- `packages/contracts` and `packages/policies` are the reviewable contract and policy source of truth.
-- PostgreSQL is the only required local infrastructure dependency.
+The system remains authoritative for:
 
-## MVP Workflow
-The MVP wedge remains one governed workflow: change control for IT operations.
+- policy enforcement
+- approval state
+- audit logging
+- persistence
+- any future tool execution or connector dispatch
 
-- The Intake Agent interprets the request and extracts structured change context.
-- The Planning Agent proposes bounded execution steps.
-- The Risk & Policy Agent summarizes risk and policy-relevant facts.
-- The Execution Agent reasons about approved execution sequencing and result interpretation.
-
-The currently implemented vertical slice stops at governed preview generation:
-
-- operators submit a change request
-- the request is persisted in PostgreSQL
-- the bounded Intake, Planning, and Risk & Policy roles produce structured preview output
-- the system policy engine attaches authoritative allow or approval-required decisions
-- approval-required actions create human approval requests
-- approvers can review and decide those requests in the UI
-- submission and preview generation are written to the audit trail
-
-System components remain authoritative for:
-
-- Policy evaluation
-- Approval enforcement
-- Tool authorization and execution
-- Audit logging
-- Persistence
+## Repository Shape
+- `apps/api` — HTTP API, orchestration boundary, approval and audit endpoints
+- `apps/web` — ControlProof operator and approver interface
+- `services/orchestrator` — bounded multi-agent evidence workflow
+- `services/policy-engine` — reviewable policy decisions for evidence actions
+- `services/audit` — append-only audit service and local evidence boundary
+- `packages/contracts` — shared schemas and API contracts
+- `packages/policies` — versioned policy bundle for governed evidence review
 
 ## Local Development
 1. Install Node.js 20+ and Docker Desktop.
@@ -57,23 +44,22 @@ System components remain authoritative for:
    - `docker compose -f deploy/docker/compose.yml up -d`
 4. Install dependencies:
    - `npm install`
-5. Apply the initial schema:
+5. Apply the schema and migrations:
    - `npm run db:migrate`
 6. Start the API:
    - `npm run dev:api`
 7. Start the web app in another terminal:
    - `npm run dev:web`
 
-## Initial Commands
+## Verification
 - `npm run lint`
-- `npm run test`
 - `npm run typecheck`
-- `npm run db:migrate`
+- `npm run test`
 
-## Current Boundaries
-- No direct model-to-tool execution
-- No external broker, queue, cache, or Kubernetes dependency
-- No generic swarm or open-ended multi-agent platform scope
-- Tool execution remains deferred beyond preview and approval
+## Boundaries
+- no direct model-to-tool execution
+- no agent-owned policy enforcement, approvals, audit logging, or persistence
+- no generic open-ended agent platform behavior
+- tool execution remains deferred; the alpha stops at governed review and approval
 
-See `docs/architecture.md`, `docs/threat-model.md`, and `docs/roadmap.md` for the approved planning baseline.
+See `docs/architecture.md` and `docs/threat-model.md` for the current product baseline.

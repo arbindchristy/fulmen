@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react';
 
+import type {
+  ApprovalRequestDetail,
+  GovernedPreviewResponse,
+} from '@fulmen/contracts';
+
 import { ApprovalQueue } from '../features/approvals/ApprovalQueue';
 import { AuditPanel } from '../features/audit/AuditPanel';
 import { ChangeRequestPanel } from '../features/change-requests/ChangeRequestPanel';
@@ -16,6 +21,8 @@ export function App() {
     status: 'idle',
     message: 'Waiting for API check.',
   });
+  const [activePreview, setActivePreview] =
+    useState<GovernedPreviewResponse | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -23,7 +30,7 @@ export function App() {
     async function loadHealth() {
       setHealth({
         status: 'loading',
-        message: 'Checking API health.',
+        message: 'Checking ControlProof API health.',
       });
 
       try {
@@ -59,26 +66,102 @@ export function App() {
     };
   }, []);
 
+  const approvalCount =
+    activePreview?.governedActions.filter((action) => action.approvalRequired)
+      .length ?? 0;
+  const openGapCount =
+    activePreview?.evidencePack.gaps.filter((gap) => gap.severity !== 'low').length ??
+    0;
+
   return (
     <main className="page-shell">
       <header className="hero">
-        <p className="eyebrow">Fulmen MVP</p>
-        <h1>Governed multi-agent change preview</h1>
-        <p className="subtitle">
-          Submit one change-control request, inspect bounded agent reasoning, and see
-          the system policy posture before any execution path exists.
-        </p>
-        <div className={`health health-${health.status}`}>{health.message}</div>
+        <div className="hero-copy">
+          <p className="eyebrow">ControlProof Alpha</p>
+          <h1>Governed evidence operations for audit-ready control proof</h1>
+          <p className="subtitle">
+            Build a control evidence cycle, review sourced artifacts, route exception
+            approvals, and preserve an audit trail from intake to frozen narrative.
+          </p>
+        </div>
+
+        <div className="hero-sidebar">
+          <div className={`health health-${health.status}`}>{health.message}</div>
+          <div className="hero-metrics">
+            <article>
+              <strong>{activePreview?.evidencePack.artifacts.length ?? 0}</strong>
+              <span>Artifacts in active pack</span>
+            </article>
+            <article>
+              <strong>{openGapCount}</strong>
+              <span>Open material gaps</span>
+            </article>
+            <article>
+              <strong>{approvalCount}</strong>
+              <span>Governed reviews</span>
+            </article>
+          </div>
+        </div>
       </header>
 
       <section className="primary-panel">
-        <ChangeRequestPanel />
+        <ChangeRequestPanel
+          preview={activePreview}
+          onPreviewCreated={setActivePreview}
+        />
       </section>
 
       <section className="grid secondary-grid">
-        <ApprovalQueue />
-        <AuditPanel />
+        <ApprovalQueue
+          onApprovalResolved={(approval) => {
+            setActivePreview((current) =>
+              current ? mergeApprovalIntoPreview(current, approval) : current,
+            );
+          }}
+        />
+        <AuditPanel entityId={activePreview?.changeRequest.id ?? null} />
       </section>
     </main>
   );
+}
+
+function mergeApprovalIntoPreview(
+  preview: GovernedPreviewResponse,
+  approval: ApprovalRequestDetail,
+): GovernedPreviewResponse {
+  if (preview.changeRequest.id !== approval.changeRequest.id) {
+    return preview;
+  }
+
+  return {
+    ...preview,
+    changeRequest: {
+      ...preview.changeRequest,
+      status: approval.changeRequest.status,
+    },
+    governedActions: preview.governedActions.map((governedAction) => {
+      if (governedAction.action.id !== approval.action.id) {
+        return governedAction;
+      }
+
+      return {
+        ...governedAction,
+        approvalRequest: {
+          id: approval.id,
+          tenantId: approval.tenantId,
+          changeRequestId: approval.changeRequestId,
+          status: approval.status,
+          assignedRole: approval.assignedRole,
+          assignedUserId: approval.assignedUserId,
+          actionId: approval.actionId,
+          actionTitle: approval.actionTitle,
+          actionSummary: approval.actionSummary,
+          actionType: approval.actionType,
+          resourceRef: approval.resourceRef,
+          createdAt: approval.createdAt,
+        },
+        approvalDecision: approval.decision,
+      };
+    }),
+  };
 }

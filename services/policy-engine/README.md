@@ -3,7 +3,7 @@
 In-process policy evaluation boundary for the Fulmen MVP.
 
 ## Purpose
-- Load the MVP change-control policy bundle
+- Load the MVP control-evidence policy bundle
 - Evaluate planned actions against reviewable rules
 - Return typed allow, deny, or require-approval decisions
 

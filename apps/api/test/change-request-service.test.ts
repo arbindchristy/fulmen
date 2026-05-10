@@ -11,7 +11,7 @@ import { createChangeRequestService } from '../src/change-requests/change-reques
 import type { ChangeRequestRepository } from '../src/change-requests/change-request-repository.js';
 
 describe('@fulmen/api change request service', () => {
-  it('submits a change request, emits audit events, and returns a preview-ready response', async () => {
+  it('submits an evidence cycle, emits audit events, and returns an in-review response', async () => {
     const principalCalls: string[] = [];
     const auditEvents: string[] = [];
 
@@ -24,19 +24,23 @@ describe('@fulmen/api change request service', () => {
           id: '00000000-0000-0000-0000-000000000111',
           tenantId: context.tenantId,
           requestKey: 'cr-001',
-          title: 'Restart edge router',
-          description: 'Restart router-01 during the next maintenance window.',
-          rationale: 'Recover from a failed routing daemon.',
+          title: 'Quarterly access review evidence pack',
+          controlFamily: 'Access Governance',
+          framework: 'SOC 2 CC6.2',
+          description: 'Collect evidence for privileged access review completion.',
+          rationale: 'Produce an audit-ready evidence pack.',
+          businessOwner: 'Head of Identity Operations',
+          sourceSystems: ['Okta', 'Jira'],
           riskLevel: 'high',
           status: 'submitted',
-          targetRef: 'router-01',
-          environment: 'production',
+          targetRef: 'UGR-ACCESS-01',
+          environment: 'Global identity operations',
           requestedBy: context.userId,
           requestedWindow: {
-            startAt: '2026-03-22T01:00:00.000Z',
-            endAt: '2026-03-22T02:00:00.000Z',
+            startAt: '2026-05-01T00:00:00.000Z',
+            endAt: '2026-05-31T23:59:00.000Z',
           },
-          createdAt: '2026-03-21T12:00:00.000Z',
+          createdAt: '2026-05-10T12:00:00.000Z',
         };
       },
       async updateStatus(id, tenantId, status) {
@@ -44,19 +48,23 @@ describe('@fulmen/api change request service', () => {
           id,
           tenantId,
           requestKey: 'cr-001',
-          title: 'Restart edge router',
-          description: 'Restart router-01 during the next maintenance window.',
-          rationale: 'Recover from a failed routing daemon.',
+          title: 'Quarterly access review evidence pack',
+          controlFamily: 'Access Governance',
+          framework: 'SOC 2 CC6.2',
+          description: 'Collect evidence for privileged access review completion.',
+          rationale: 'Produce an audit-ready evidence pack.',
+          businessOwner: 'Head of Identity Operations',
+          sourceSystems: ['Okta', 'Jira'],
           riskLevel: 'high',
           status,
-          targetRef: 'router-01',
-          environment: 'production',
+          targetRef: 'UGR-ACCESS-01',
+          environment: 'Global identity operations',
           requestedBy: '00000000-0000-0000-0000-000000000010',
           requestedWindow: {
-            startAt: '2026-03-22T01:00:00.000Z',
-            endAt: '2026-03-22T02:00:00.000Z',
+            startAt: '2026-05-01T00:00:00.000Z',
+            endAt: '2026-05-31T23:59:00.000Z',
           },
-          createdAt: '2026-03-21T12:00:00.000Z',
+          createdAt: '2026-05-10T12:00:00.000Z',
         };
       },
     };
@@ -74,12 +82,12 @@ describe('@fulmen/api change request service', () => {
             status: 'pending',
             assignedRole: 'approver',
             assignedUserId: null,
-            actionId: 'execute-change',
-            actionTitle: 'Apply the requested change',
-            actionSummary: 'Restart router-01 during the approved window.',
-            actionType: 'change.execute',
-            resourceRef: 'router-01',
-            createdAt: '2026-03-21T12:05:00.000Z',
+            actionId: 'adjudicate-gaps',
+            actionTitle: 'Adjudicate evidence gaps and compensating explanations',
+            actionSummary: 'Route unresolved gaps through governed review.',
+            actionType: 'evidence.exception_review',
+            resourceRef: 'UGR-ACCESS-01',
+            createdAt: '2026-05-10T12:05:00.000Z',
           },
         ];
       },
@@ -109,62 +117,96 @@ describe('@fulmen/api change request service', () => {
           changeRequest,
           normalizedRequest: {
             title: changeRequest.title,
-            changeCategory: 'network',
+            controlFamily: changeRequest.controlFamily,
+            framework: changeRequest.framework,
             targetRef: changeRequest.targetRef,
             environment: changeRequest.environment,
-            requestedOutcome: 'Restart router-01 cleanly.',
+            businessOwner: changeRequest.businessOwner,
+            sourceSystems: changeRequest.sourceSystems,
+            requestedOutcome:
+              'Collect evidence for privileged access review completion for SOC 2 CC6.2 control UGR-ACCESS-01.',
             rationale: changeRequest.rationale,
             operatorIntentSummary:
-              'Apply the requested change to router-01 in production.',
-            assumptions: ['A maintenance window has been proposed.'],
+              'Prepare a governed evidence pack for Access Governance control UGR-ACCESS-01 in Global identity operations.',
+            expectedArtifacts: ['Okta export', 'Jira approvals'],
+            assumptions: ['A bounded evidence collection period has been declared.'],
             missingInformation: [],
             requestedWindow: changeRequest.requestedWindow,
           },
           actionPlan: {
-            planId: 'plan-router-01',
-            summary: 'Validate, execute, and verify the requested change.',
+            planId: 'plan-ugr-access-01',
+            summary: 'Collect, reconcile, narrate, and adjudicate evidence.',
             actions: [
               {
-                id: 'execute-change',
-                kind: 'execution',
-                title: 'Apply the requested change',
-                actionType: 'change.execute',
+                id: 'adjudicate-gaps',
+                kind: 'adjudication',
+                title: 'Adjudicate evidence gaps and compensating explanations',
+                actionType: 'evidence.exception_review',
                 resourceRef: changeRequest.targetRef,
-                summary: 'Restart router-01 during the approved window.',
-                rationale: 'Production restart requested by the operator.',
+                summary: 'Route unresolved gaps through governed review.',
+                rationale: 'Gap acceptance is the trust boundary.',
               },
             ],
           },
           governedActions: [
             {
               action: {
-                id: 'execute-change',
-                kind: 'execution',
-                title: 'Apply the requested change',
-                actionType: 'change.execute',
+                id: 'adjudicate-gaps',
+                kind: 'adjudication',
+                title: 'Adjudicate evidence gaps and compensating explanations',
+                actionType: 'evidence.exception_review',
                 resourceRef: changeRequest.targetRef,
-                summary: 'Restart router-01 during the approved window.',
-                rationale: 'Production restart requested by the operator.',
+                summary: 'Route unresolved gaps through governed review.',
+                rationale: 'Gap acceptance is the trust boundary.',
               },
               riskAssessment: {
-                actionId: 'execute-change',
+                actionId: 'adjudicate-gaps',
                 riskLevel: 'high',
                 posture: 'review',
-                summary: 'This action changes a production router.',
-                factors: ['Production environment', 'High-risk request'],
+                summary: 'This action accepts unresolved evidence gaps.',
+                factors: ['Evidence sensitivity: high.', 'Open intake gaps remain.'],
               },
               policyDecision: {
-                actionType: 'change.execute',
+                actionType: 'evidence.exception_review',
                 resourceRef: changeRequest.targetRef,
                 decision: 'require_approval',
-                reasonCode: 'policy.require-approval-high-risk-execution',
-                explanation: 'High-risk change requires approval.',
+                reasonCode: 'policy.require-approval-high-sensitivity-exception',
+                explanation: 'High-sensitivity evidence exception requires approval.',
               },
               approvalRequired: true,
+              approvalRequest: null,
+              approvalDecision: null,
             },
           ],
+          evidencePack: {
+            coverageSummary: '2 of 3 artifacts are audit-ready.',
+            narrativeDraft: 'Draft narrative ready for reviewer inspection.',
+            artifacts: [
+              {
+                id: 'artifact-1',
+                system: 'Okta',
+                artifactType: 'system-export',
+                title: 'Okta control evidence',
+                description: 'System-generated evidence extract from Okta.',
+                status: 'ready',
+                freshness: 'current',
+                provenance: 'Connector snapshot captured from Okta.',
+              },
+            ],
+            gaps: [
+              {
+                id: 'gap-1',
+                severity: 'high',
+                title: 'Owner attestation is not audit-ready',
+                summary: 'Owner attestation still needs stronger provenance.',
+                remediation: 'Collect a reviewer-acceptable attestation.',
+                approvalRequired: true,
+              },
+            ],
+            followUps: ['Collect a reviewer-acceptable attestation.'],
+          },
           previewSummary:
-            'Preview prepared with one action requiring approval before execution.',
+            'Evidence pack prepared with 1 high-severity gap and 1 governed review action requiring approval.',
         };
       },
     };
@@ -178,15 +220,19 @@ describe('@fulmen/api change request service', () => {
 
     const preview = await service.submitAndPreview(
       {
-        title: 'Restart edge router',
-        description: 'Restart router-01 during the next maintenance window.',
-        rationale: 'Recover from a failed routing daemon.',
+        title: 'Quarterly access review evidence pack',
+        controlFamily: 'Access Governance',
+        framework: 'SOC 2 CC6.2',
+        description: 'Collect evidence for privileged access review completion.',
+        rationale: 'Produce an audit-ready evidence pack.',
+        businessOwner: 'Head of Identity Operations',
+        sourceSystems: ['Okta', 'Jira'],
         riskLevel: 'high',
-        targetRef: 'router-01',
-        environment: 'production',
+        targetRef: 'UGR-ACCESS-01',
+        environment: 'Global identity operations',
         requestedWindow: {
-          startAt: '2026-03-22T01:00:00.000Z',
-          endAt: '2026-03-22T02:00:00.000Z',
+          startAt: '2026-05-01T00:00:00.000Z',
+          endAt: '2026-05-31T23:59:00.000Z',
         },
       },
       {
@@ -198,13 +244,13 @@ describe('@fulmen/api change request service', () => {
 
     expect(principalCalls).toEqual(['00000000-0000-0000-0000-000000000010']);
     expect(preview.changeRequest.status).toBe('in_review');
-    expect(preview.governedActions[0]!.approvalRequired).toBe(true);
+    expect(preview.evidencePack.gaps).toHaveLength(1);
     expect(preview.governedActions[0]!.approvalRequest?.id).toBe(
       '00000000-0000-0000-0000-000000000211',
     );
     expect(auditEvents).toEqual([
-      'change_request.submitted',
-      'change_request.preview_generated',
+      'evidence_cycle.submitted',
+      'evidence_cycle.preview_generated',
     ]);
   });
 });

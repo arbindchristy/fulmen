@@ -12,16 +12,22 @@ const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000';
 type ApprovalLoadState = 'idle' | 'loading' | 'ready' | 'error';
 type DecisionState = 'idle' | 'submitting' | 'success' | 'error';
 
-export function ApprovalQueue() {
-  const [approvals, setApprovals] = useState<ApprovalRequestListItem[]>([]);
+interface ApprovalQueueProps {
+  onApprovalResolved(approval: ApprovalRequestDetail): void;
+}
+
+export function ApprovalQueue({ onApprovalResolved }: ApprovalQueueProps) {
+  const [pendingApprovals, setPendingApprovals] = useState<ApprovalRequestListItem[]>([]);
+  const [recentlyDecided, setRecentlyDecided] = useState<ApprovalRequestDetail[]>([]);
   const [selectedApprovalId, setSelectedApprovalId] = useState<string | null>(null);
   const [selectedApproval, setSelectedApproval] =
     useState<ApprovalRequestDetail | null>(null);
+  const [selectedScope, setSelectedScope] = useState<'pending' | 'decided' | null>(null);
   const [loadState, setLoadState] = useState<ApprovalLoadState>('idle');
   const [decisionState, setDecisionState] = useState<DecisionState>('idle');
   const [decisionMessage, setDecisionMessage] = useState<string | null>(null);
   const [justification, setJustification] = useState(
-    'Window confirmed. Human approval granted for the governed action.',
+    'Evidence gaps are understood, provenance is acceptable for the period, and the compensating narrative is sufficient for approval.',
   );
 
   useEffect(() => {
@@ -29,13 +35,12 @@ export function ApprovalQueue() {
   }, []);
 
   useEffect(() => {
-    if (!selectedApprovalId) {
-      setSelectedApproval(null);
+    if (!selectedApprovalId || selectedScope !== 'pending') {
       return;
     }
 
     void loadApprovalDetail(selectedApprovalId);
-  }, [selectedApprovalId]);
+  }, [selectedApprovalId, selectedScope]);
 
   async function loadApprovals() {
     setLoadState('loading');
@@ -52,9 +57,25 @@ export function ApprovalQueue() {
       }
 
       const data = (await response.json()) as ApprovalRequestListItem[];
-      setApprovals(data);
-      setSelectedApprovalId((current) => current ?? data[0]?.id ?? null);
+      setPendingApprovals(data);
       setLoadState('ready');
+
+      if (data.length > 0 && (!selectedApprovalId || selectedScope !== 'pending')) {
+        setSelectedApprovalId(data[0]?.id ?? null);
+        setSelectedScope('pending');
+      }
+
+      if (data.length === 0 && selectedScope === 'pending') {
+        if (recentlyDecided.length > 0) {
+          setSelectedApproval(recentlyDecided[0] ?? null);
+          setSelectedApprovalId(recentlyDecided[0]?.id ?? null);
+          setSelectedScope('decided');
+        } else {
+          setSelectedApproval(null);
+          setSelectedApprovalId(null);
+          setSelectedScope(null);
+        }
+      }
     } catch (error) {
       setLoadState('error');
       setDecisionMessage(
@@ -80,6 +101,8 @@ export function ApprovalQueue() {
 
       const data = (await response.json()) as ApprovalRequestDetail;
       setSelectedApproval(data);
+      setDecisionState('idle');
+      setDecisionMessage(null);
     } catch (error) {
       setDecisionMessage(
         error instanceof Error ? error.message : 'Unknown approval detail failure.',
@@ -115,13 +138,21 @@ export function ApprovalQueue() {
       }
 
       const data = (await response.json()) as ApprovalRequestDetail;
+
       setSelectedApproval(data);
+      setSelectedApprovalId(data.id);
+      setSelectedScope('decided');
       setDecisionState('success');
       setDecisionMessage(
         action === 'approve'
-          ? 'Approval recorded.'
-          : 'Rejection recorded.',
+          ? 'Exception approval recorded.'
+          : 'Exception rejection recorded.',
       );
+      setRecentlyDecided((current) => [
+        data,
+        ...current.filter((item) => item.id !== data.id),
+      ].slice(0, 5));
+      onApprovalResolved(data);
       await loadApprovals();
     } catch (error) {
       setDecisionState('error');
@@ -132,58 +163,109 @@ export function ApprovalQueue() {
   }
 
   return (
-    <Panel title="Approval inbox">
+    <Panel title="Exception approvals">
       <p className="panel-intro">
-        Pending approval-required actions are listed here in local approver mode.
+        High-sensitivity evidence gaps stay governed. Approvers see the control
+        context, risk summary, and policy basis before accepting any exception.
       </p>
 
       <div className="approval-layout">
         <div className="approval-list">
-          <div className={`approval-status approval-state-${loadState}`}>
-            {approvalStatusLabel(loadState, approvals.length)}
-          </div>
+          <section className="approval-group">
+            <div className={`approval-status approval-state-${loadState}`}>
+              {approvalStatusLabel(loadState, pendingApprovals.length)}
+            </div>
 
-          {approvals.length === 0 && loadState === 'ready' ? (
-            <p>No pending approvals.</p>
-          ) : null}
+            {pendingApprovals.length === 0 && loadState === 'ready' ? (
+              <p>No pending exception approvals.</p>
+            ) : null}
 
-          {approvals.map((approval) => (
-            <button
-              key={approval.id}
-              className={`approval-list-item ${
-                selectedApprovalId === approval.id ? 'approval-list-item-active' : ''
-              }`}
-              onClick={() => setSelectedApprovalId(approval.id)}
-              type="button"
-            >
-              <strong>{approval.actionTitle}</strong>
-              <span>{approval.changeRequestTitle}</span>
-              <small>{approval.requestKey}</small>
-            </button>
-          ))}
+            {pendingApprovals.map((approval) => (
+              <button
+                key={approval.id}
+                className={`approval-list-item ${
+                  selectedApprovalId === approval.id && selectedScope === 'pending'
+                    ? 'approval-list-item-active'
+                    : ''
+                }`}
+                onClick={() => {
+                  setSelectedApprovalId(approval.id);
+                  setSelectedScope('pending');
+                }}
+                type="button"
+              >
+                <strong>{approval.actionTitle}</strong>
+                <span>{approval.changeRequestTitle}</span>
+                <small>{approval.requestKey}</small>
+              </button>
+            ))}
+          </section>
+
+          <section className="approval-group">
+            <h3 className="approval-group-title">Recently decided</h3>
+            {recentlyDecided.length === 0 ? (
+              <p>No recent decisions in this session.</p>
+            ) : null}
+
+            {recentlyDecided.map((approval) => (
+              <button
+                key={approval.id}
+                className={`approval-list-item ${
+                  selectedApprovalId === approval.id && selectedScope === 'decided'
+                    ? 'approval-list-item-active'
+                    : ''
+                }`}
+                onClick={() => {
+                  setSelectedApproval(approval);
+                  setSelectedApprovalId(approval.id);
+                  setSelectedScope('decided');
+                  setDecisionState('idle');
+                }}
+                type="button"
+              >
+                <strong>{approval.actionTitle}</strong>
+                <span>{approval.changeRequest.title}</span>
+                <small>{formatStatus(approval.status)}</small>
+              </button>
+            ))}
+          </section>
         </div>
 
         <div className="approval-detail">
           {selectedApproval ? (
             <>
-              <h3>{selectedApproval.actionTitle}</h3>
-              <p>{selectedApproval.actionSummary}</p>
+              <div className="approval-detail-header">
+                <div>
+                  <h3>{selectedApproval.actionTitle}</h3>
+                  <p>{selectedApproval.actionSummary}</p>
+                </div>
+                <span className={`status-chip status-${selectedApproval.status}`}>
+                  {formatStatus(selectedApproval.status)}
+                </span>
+              </div>
+
+              <p className="approval-panel-label">
+                {selectedApproval.status === 'pending'
+                  ? 'Pending exception approval'
+                  : 'Recorded exception decision'}
+              </p>
+
               <dl className="preview-metadata approval-metadata">
                 <div>
-                  <dt>Change request</dt>
+                  <dt>Evidence cycle</dt>
                   <dd>{selectedApproval.changeRequest.title}</dd>
+                </div>
+                <div>
+                  <dt>Framework</dt>
+                  <dd>{selectedApproval.changeRequest.framework}</dd>
+                </div>
+                <div>
+                  <dt>Control</dt>
+                  <dd>{selectedApproval.changeRequest.targetRef}</dd>
                 </div>
                 <div>
                   <dt>Assigned role</dt>
                   <dd>{selectedApproval.assignedRole}</dd>
-                </div>
-                <div>
-                  <dt>System policy</dt>
-                  <dd>{selectedApproval.policyDecision.decision}</dd>
-                </div>
-                <div>
-                  <dt>Risk posture</dt>
-                  <dd>{selectedApproval.riskAssessment.posture}</dd>
                 </div>
               </dl>
 
@@ -195,56 +277,64 @@ export function ApprovalQueue() {
                 ))}
               </ul>
 
-              <label className="approval-justification">
-                Decision justification
-                <textarea
-                  rows={3}
-                  value={justification}
-                  onChange={(event) => setJustification(event.target.value)}
-                />
-              </label>
+              <p className="policy-line">
+                <strong>System policy basis:</strong> {selectedApproval.policyDecision.explanation}
+              </p>
 
-              <div className="approval-actions">
-                <button
-                  className="approve-button"
-                  disabled={
-                    decisionState === 'submitting' ||
-                    selectedApproval.status !== 'pending'
-                  }
-                  onClick={() => void submitDecision('approve')}
-                  type="button"
-                >
-                  Approve
-                </button>
-                <button
-                  className="reject-button"
-                  disabled={
-                    decisionState === 'submitting' ||
-                    selectedApproval.status !== 'pending'
-                  }
-                  onClick={() => void submitDecision('reject')}
-                  type="button"
-                >
-                  Reject
-                </button>
-              </div>
+              {selectedApproval.status === 'pending' ? (
+                <>
+                  <label className="approval-justification">
+                    Approval justification
+                    <textarea
+                      rows={4}
+                      value={justification}
+                      onChange={(event) => setJustification(event.target.value)}
+                    />
+                  </label>
 
-              {selectedApproval.decision ? (
-                <p className="decision-note">
-                  Decision: {selectedApproval.decision.decision} by{' '}
-                  {selectedApproval.decision.decidedBy}
+                  <div className="approval-actions">
+                    <button
+                      className="approve-button"
+                      disabled={decisionState === 'submitting'}
+                      onClick={() => void submitDecision('approve')}
+                      type="button"
+                    >
+                      Approve exception
+                    </button>
+                    <button
+                      className="reject-button"
+                      disabled={decisionState === 'submitting'}
+                      onClick={() => void submitDecision('reject')}
+                      type="button"
+                    >
+                      Reject exception
+                    </button>
+                  </div>
+                </>
+              ) : selectedApproval.decision ? (
+                <div className="decision-record">
+                  <h4>Decision record</h4>
+                  <p>
+                    <strong>Status:</strong> {formatStatus(selectedApproval.decision.decision)}
+                  </p>
+                  <p>
+                    <strong>Actor:</strong> {selectedApproval.decision.decidedBy}
+                  </p>
+                  <p>
+                    <strong>Justification:</strong> {selectedApproval.decision.justification}
+                  </p>
+                </div>
+              ) : null}
+
+              {decisionMessage ? (
+                <p className={`decision-message decision-${decisionState}`}>
+                  {decisionMessage}
                 </p>
               ) : null}
             </>
           ) : (
-            <p>Select a pending approval to review its details.</p>
+            <p>Select an approval record to inspect it.</p>
           )}
-
-          {decisionMessage ? (
-            <p className={`decision-feedback decision-${decisionState}`}>
-              {decisionMessage}
-            </p>
-          ) : null}
         </div>
       </div>
     </Panel>
@@ -253,16 +343,22 @@ export function ApprovalQueue() {
 
 function approvalStatusLabel(
   state: ApprovalLoadState,
-  count: number,
+  pendingCount: number,
 ): string {
   switch (state) {
     case 'loading':
-      return 'Loading pending approvals';
-    case 'ready':
-      return `${count} pending approval${count === 1 ? '' : 's'}`;
+      return 'Loading pending approvals...';
     case 'error':
-      return 'Approval inbox error';
+      return 'Approval inbox unavailable';
+    case 'ready':
+      return pendingCount > 0
+        ? `${pendingCount} pending exception approval${pendingCount === 1 ? '' : 's'}`
+        : 'Approval inbox clear';
     default:
       return 'Approval inbox idle';
   }
+}
+
+function formatStatus(value: string): string {
+  return value.replace(/_/g, ' ');
 }

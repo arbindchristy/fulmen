@@ -1,26 +1,40 @@
 {
-  "name": "change-control-default",
+  "name": "control-evidence-default",
   "version": "0.1.0",
-  "workflow": "change-control",
+  "workflow": "control-evidence",
   "rules": [
     {
-      "id": "allow-low-risk-validation",
-      "description": "Validation actions on low-risk changes are allowed.",
-      "actionType": "change.validate",
+      "id": "allow-evidence-collection",
+      "description": "Evidence collection actions are allowed for governed retrieval.",
+      "actionType": "evidence.collect",
       "minRiskLevel": "low",
       "decision": "allow"
     },
     {
-      "id": "require-approval-high-risk-execution",
-      "description": "Execution actions on high-risk changes require approval.",
-      "actionType": "change.execute",
+      "id": "allow-evidence-reconciliation",
+      "description": "Reconciliation actions are allowed when they stay inside the governed review path.",
+      "actionType": "evidence.reconcile",
+      "minRiskLevel": "low",
+      "decision": "allow"
+    },
+    {
+      "id": "allow-narrative-drafting",
+      "description": "Drafting control narratives is allowed because it does not finalize acceptance.",
+      "actionType": "evidence.compose",
+      "minRiskLevel": "low",
+      "decision": "allow"
+    },
+    {
+      "id": "require-approval-high-sensitivity-exception",
+      "description": "Exception acceptance for high-sensitivity evidence cycles requires human approval.",
+      "actionType": "evidence.exception_review",
       "minRiskLevel": "high",
       "decision": "require_approval"
     },
     {
-      "id": "allow-medium-risk-execution",
-      "description": "Medium-risk execution remains governed but is allowed by default for the stub flow.",
-      "actionType": "change.execute",
+      "id": "allow-medium-sensitivity-exception",
+      "description": "Medium-sensitivity exception review remains governed but can proceed without explicit approval in the alpha.",
+      "actionType": "evidence.exception_review",
       "minRiskLevel": "medium",
       "decision": "allow"
     }

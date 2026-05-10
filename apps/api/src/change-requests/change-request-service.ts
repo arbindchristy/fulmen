@@ -35,13 +35,15 @@ export function createChangeRequestService(
 
       await dependencies.auditService.record({
         tenantId: context.tenantId,
-        eventType: 'change_request.submitted',
-        entityType: 'change_request',
+        eventType: 'evidence_cycle.submitted',
+        entityType: 'evidence_cycle',
         entityId: submittedRequest.id,
         actorType: 'user',
         actorId: context.userId,
         payload: {
           requestKey: submittedRequest.requestKey,
+          framework: submittedRequest.framework,
+          controlFamily: submittedRequest.controlFamily,
           riskLevel: submittedRequest.riskLevel,
           targetRef: submittedRequest.targetRef,
           environment: submittedRequest.environment,
@@ -77,18 +79,20 @@ export function createChangeRequestService(
         governedActions: preview.governedActions.map((action) => ({
           ...action,
           approvalRequest: approvalsByActionId.get(action.action.id) ?? null,
+          approvalDecision: null,
         })),
       };
 
       await dependencies.auditService.record({
         tenantId: context.tenantId,
-        eventType: 'change_request.preview_generated',
-        entityType: 'change_request',
+        eventType: 'evidence_cycle.preview_generated',
+        entityType: 'evidence_cycle',
         entityId: submittedRequest.id,
         actorType: 'system',
         actorId: 'orchestrator',
         payload: {
           actionCount: response.governedActions.length,
+          gapCount: response.evidencePack.gaps.length,
           approvalRequiredActions: response.governedActions
             .filter((action) => action.approvalRequired)
             .map((action) => action.action.id),

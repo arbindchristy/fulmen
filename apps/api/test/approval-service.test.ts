@@ -10,7 +10,7 @@ import type { ApprovalRepository } from '../src/approvals/approval-repository.js
 import type { ChangeRequestRepository } from '../src/change-requests/change-request-repository.js';
 
 describe('@fulmen/api approval service', () => {
-  it('creates approval requests only for approval-required actions and audits creation', async () => {
+  it('creates approval requests only for approval-required evidence actions and audits creation', async () => {
     const auditEvents: string[] = [];
     const createdInputs: number[] = [];
 
@@ -31,7 +31,7 @@ describe('@fulmen/api approval service', () => {
             actionSummary: item.governedAction.action.summary,
             actionType: item.governedAction.action.actionType,
             resourceRef: item.governedAction.action.resourceRef,
-            createdAt: '2026-03-21T12:05:00.000Z',
+            createdAt: '2026-05-10T12:05:00.000Z',
           }));
         },
         async listPendingApprovals() {
@@ -42,6 +42,14 @@ describe('@fulmen/api approval service', () => {
         },
         async recordApprovalDecision() {
           throw new Error('not implemented');
+        },
+        async summarizeChangeRequestApprovals() {
+          return {
+            total: 1,
+            pending: 1,
+            approved: 0,
+            rejected: 0,
+          };
         },
       },
       auditService: {
@@ -61,9 +69,12 @@ describe('@fulmen/api approval service', () => {
           };
         },
       } as AuditService,
-      principalProvisioner: {
+      changeRequestRepository: {
         async ensurePrincipal() {},
-      } satisfies Pick<ChangeRequestRepository, 'ensurePrincipal'>,
+        async updateStatus() {
+          throw new Error('updateStatus should not be called when creating approvals');
+        },
+      } satisfies Pick<ChangeRequestRepository, 'ensurePrincipal' | 'updateStatus'>,
     });
 
     const approvals = await service.createApprovalRequestsForActions({
@@ -72,77 +83,82 @@ describe('@fulmen/api approval service', () => {
         id: '00000000-0000-0000-0000-000000000111',
         tenantId: '00000000-0000-0000-0000-000000000001',
         requestKey: 'cr-001',
-        title: 'Restart edge router',
-        description: 'Restart router-01 during the approved window.',
-        rationale: 'Recover from a failed daemon.',
+        title: 'Quarterly access review evidence pack',
+        controlFamily: 'Access Governance',
+        framework: 'SOC 2 CC6.2',
+        description: 'Collect evidence for privileged access review completion.',
+        rationale: 'Produce an audit-ready evidence pack.',
+        businessOwner: 'Head of Identity Operations',
+        sourceSystems: ['Okta', 'Jira'],
         riskLevel: 'high',
         status: 'submitted',
-        targetRef: 'router-01',
-        environment: 'production',
+        targetRef: 'UGR-ACCESS-01',
+        environment: 'Global identity operations',
         requestedBy: '00000000-0000-0000-0000-000000000010',
-        createdAt: '2026-03-21T12:00:00.000Z',
+        createdAt: '2026-05-10T12:00:00.000Z',
       },
       governedActions: [
         {
           action: {
-            id: 'validate-target',
-            kind: 'validation',
-            title: 'Validate target',
-            actionType: 'change.validate',
-            resourceRef: 'router-01',
-            summary: 'Validate target access.',
-            rationale: 'Pre-check.',
+            id: 'collect-evidence',
+            kind: 'collection',
+            title: 'Collect governed evidence from declared systems',
+            actionType: 'evidence.collect',
+            resourceRef: 'UGR-ACCESS-01',
+            summary: 'Collect source artifacts.',
+            rationale: 'Collection is system controlled.',
           },
           riskAssessment: {
-            actionId: 'validate-target',
+            actionId: 'collect-evidence',
             riskLevel: 'high',
             posture: 'inform',
-            summary: 'Validation only.',
-            factors: ['No state change'],
+            summary: 'Collection only.',
+            factors: ['No final acceptance'],
           },
           policyDecision: {
-            actionType: 'change.validate',
-            resourceRef: 'router-01',
+            actionType: 'evidence.collect',
+            resourceRef: 'UGR-ACCESS-01',
             decision: 'allow',
-            reasonCode: 'policy.allow-low-risk-validation',
+            reasonCode: 'policy.allow-evidence-collection',
             explanation: 'Allowed.',
           },
           approvalRequired: false,
           approvalRequest: null,
+          approvalDecision: null,
         },
         {
           action: {
-            id: 'execute-change',
-            kind: 'execution',
-            title: 'Apply the requested change',
-            actionType: 'change.execute',
-            resourceRef: 'router-01',
-            summary: 'Restart router-01 during the approved window.',
-            rationale: 'Production restart requested by operator.',
+            id: 'adjudicate-gaps',
+            kind: 'adjudication',
+            title: 'Adjudicate evidence gaps and compensating explanations',
+            actionType: 'evidence.exception_review',
+            resourceRef: 'UGR-ACCESS-01',
+            summary: 'Route unresolved gaps through governed review.',
+            rationale: 'Gap acceptance is the trust boundary.',
           },
           riskAssessment: {
-            actionId: 'execute-change',
+            actionId: 'adjudicate-gaps',
             riskLevel: 'high',
             posture: 'review',
-            summary: 'Execution changes a production router.',
-            factors: ['Production environment'],
+            summary: 'This action accepts unresolved evidence gaps.',
+            factors: ['High sensitivity'],
           },
           policyDecision: {
-            actionType: 'change.execute',
-            resourceRef: 'router-01',
+            actionType: 'evidence.exception_review',
+            resourceRef: 'UGR-ACCESS-01',
             decision: 'require_approval',
-            reasonCode: 'policy.require-approval-high-risk-execution',
-            explanation: 'High-risk change requires approval.',
+            reasonCode: 'policy.require-approval-high-sensitivity-exception',
+            explanation: 'High-sensitivity evidence exception requires approval.',
           },
           approvalRequired: true,
           approvalRequest: null,
+          approvalDecision: null,
         },
       ],
     });
 
     expect(createdInputs).toEqual([1]);
-    expect(approvals).toHaveLength(1);
-    expect(approvals[0]!.actionId).toBe('execute-change');
+    expect(approvals[0]!.actionId).toBe('adjudicate-gaps');
     expect(auditEvents).toEqual(['approval_request.created']);
   });
 
@@ -155,49 +171,58 @@ describe('@fulmen/api approval service', () => {
       status: 'pending',
       assignedRole: 'approver',
       assignedUserId: null,
-      actionId: 'execute-change',
-      actionTitle: 'Apply the requested change',
-      actionSummary: 'Restart router-01 during the approved window.',
-      actionType: 'change.execute',
-      resourceRef: 'router-01',
-      createdAt: '2026-03-21T12:05:00.000Z',
+      actionId: 'adjudicate-gaps',
+      actionTitle: 'Adjudicate evidence gaps and compensating explanations',
+      actionSummary: 'Route unresolved gaps through governed review.',
+      actionType: 'evidence.exception_review',
+      resourceRef: 'UGR-ACCESS-01',
+      createdAt: '2026-05-10T12:05:00.000Z',
       changeRequest: {
         id: '00000000-0000-0000-0000-000000000111',
         requestKey: 'cr-001',
-        title: 'Restart edge router',
-        description: 'Restart router-01 during the approved window.',
-        rationale: 'Recover from a failed daemon.',
+        title: 'Quarterly access review evidence pack',
+        controlFamily: 'Access Governance',
+        framework: 'SOC 2 CC6.2',
+        description: 'Collect evidence for privileged access review completion.',
+        rationale: 'Produce an audit-ready evidence pack.',
+        businessOwner: 'Head of Identity Operations',
+        sourceSystems: ['Okta', 'Jira'],
         riskLevel: 'high',
-        targetRef: 'router-01',
-        environment: 'production',
+        status: 'in_review',
+        targetRef: 'UGR-ACCESS-01',
+        environment: 'Global identity operations',
         requestedBy: '00000000-0000-0000-0000-000000000010',
-        createdAt: '2026-03-21T12:00:00.000Z',
+        createdAt: '2026-05-10T12:00:00.000Z',
       },
       action: {
-        id: 'execute-change',
-        kind: 'execution',
-        title: 'Apply the requested change',
-        actionType: 'change.execute',
-        resourceRef: 'router-01',
-        summary: 'Restart router-01 during the approved window.',
-        rationale: 'Production restart requested by operator.',
+        id: 'adjudicate-gaps',
+        kind: 'adjudication',
+        title: 'Adjudicate evidence gaps and compensating explanations',
+        actionType: 'evidence.exception_review',
+        resourceRef: 'UGR-ACCESS-01',
+        summary: 'Route unresolved gaps through governed review.',
+        rationale: 'Gap acceptance is the trust boundary.',
       },
       policyDecision: {
-        actionType: 'change.execute',
-        resourceRef: 'router-01',
+        actionType: 'evidence.exception_review',
+        resourceRef: 'UGR-ACCESS-01',
         decision: 'require_approval',
-        reasonCode: 'policy.require-approval-high-risk-execution',
-        explanation: 'High-risk change requires approval.',
+        reasonCode: 'policy.require-approval-high-sensitivity-exception',
+        explanation: 'High-sensitivity evidence exception requires approval.',
       },
       riskAssessment: {
-        actionId: 'execute-change',
+        actionId: 'adjudicate-gaps',
         riskLevel: 'high',
         posture: 'review',
-        summary: 'Execution changes a production router.',
-        factors: ['Production environment'],
+        summary: 'This action accepts unresolved evidence gaps.',
+        factors: ['High sensitivity'],
       },
       decision: null,
     };
+
+    let currentApprovalStatus: 'pending' | 'approved' = 'pending';
+    let currentDecision: ApprovalRequestDetail['decision'] = null;
+    let currentChangeRequestStatus: 'in_review' | 'approved' = 'in_review';
 
     const approvalRepository: ApprovalRepository = {
       async createApprovalRequests() {
@@ -207,21 +232,42 @@ describe('@fulmen/api approval service', () => {
         return [];
       },
       async getApprovalDetail() {
-        return detail;
-      },
-      async recordApprovalDecision() {
         return {
           ...detail,
-          status: 'approved',
-          decision: {
-            decision: 'approved',
-            decidedBy: '00000000-0000-0000-0000-000000000099',
-            justification: 'Maintenance window confirmed and rollback is prepared.',
-            decidedAt: '2026-03-21T12:10:00.000Z',
+          status: currentApprovalStatus,
+          changeRequest: {
+            ...detail.changeRequest,
+            status: currentChangeRequestStatus,
           },
+          decision: currentDecision,
+        };
+      },
+      async recordApprovalDecision() {
+        currentApprovalStatus = 'approved';
+        currentDecision = {
+          decision: 'approved',
+          decidedBy: '00000000-0000-0000-0000-000000000099',
+          justification: 'Residual evidence gap is understood and accepted for this period.',
+          decidedAt: '2026-05-10T12:10:00.000Z',
+        };
+
+        return {
+          ...detail,
+          status: currentApprovalStatus,
+          decision: currentDecision,
+        };
+      },
+      async summarizeChangeRequestApprovals() {
+        return {
+          total: 1,
+          pending: 0,
+          approved: 1,
+          rejected: 0,
         };
       },
     };
+
+    const updateStatuses: string[] = [];
 
     const service = createApprovalService({
       approvalRepository,
@@ -242,16 +288,26 @@ describe('@fulmen/api approval service', () => {
           };
         },
       } as AuditService,
-      principalProvisioner: {
+      changeRequestRepository: {
         async ensurePrincipal() {},
-      } satisfies Pick<ChangeRequestRepository, 'ensurePrincipal'>,
+        async updateStatus(_id, _tenantId, status) {
+          updateStatuses.push(status);
+          currentChangeRequestStatus = status as 'approved';
+
+          return {
+            ...detail.changeRequest,
+            status,
+            tenantId: '00000000-0000-0000-0000-000000000001',
+            requestedWindow: undefined,
+          };
+        },
+      } satisfies Pick<ChangeRequestRepository, 'ensurePrincipal' | 'updateStatus'>,
     });
 
     const decision = await service.approve(
       '00000000-0000-0000-0000-000000000211',
       {
-        justification:
-          'Maintenance window confirmed and rollback is prepared.',
+        justification: 'Residual evidence gap is understood and accepted for this period.',
       },
       {
         userId: '00000000-0000-0000-0000-000000000099',
@@ -261,9 +317,11 @@ describe('@fulmen/api approval service', () => {
     );
 
     expect(decision.status).toBe('approved');
+    expect(decision.changeRequest.status).toBe('approved');
     expect(decision.decision?.decidedBy).toBe(
       '00000000-0000-0000-0000-000000000099',
     );
+    expect(updateStatuses).toEqual(['approved']);
     expect(auditEvents).toEqual(['approval_request.approved']);
   });
 });
